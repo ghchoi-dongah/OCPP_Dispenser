@@ -319,7 +319,10 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
                     ChargingCurrentData chargingCurrentData = ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).getChargingCurrentData();
                     chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing);
                     chargingCurrentData.setStopReason(Reason.PowerLoss);
-                    chargingCurrentData.setPowerMeterStop(((MainActivity) MainActivity.mContext).getControlBoard().getRxData(mChannel).getActiveEnergy());
+
+//                    chargingCurrentData.setPowerMeterStop(((MainActivity) MainActivity.mContext).getControlBoard().getRxData(mChannel).getActiveEnergy());
+                    chargingCurrentData.setPowerMeterStop(chargingCurrentData.getPowerMeterStart());    // TODO: check
+
                     zonedDateTimeConvert = new ZonedDateTimeConvert();
                     chargingCurrentData.setChargingEndTime(zonedDateTimeConvert.getStringCurrentTimeZone());
                     chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing);

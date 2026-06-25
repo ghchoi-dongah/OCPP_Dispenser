@@ -106,7 +106,7 @@ public class InitFragment extends Fragment implements View.OnClickListener {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_init, container, false);
-        animBlink = AnimationUtils.loadAnimation(getActivity(), R.anim.blink);
+        animBlink = AnimationUtils.loadAnimation(getActivity(), R.anim.blink_animation);
         viewCircle = view.findViewById(R.id.viewCircle);
         viewCircle.setOnClickListener(this);
         textViewConnector = view.findViewById(R.id.textViewConnector);

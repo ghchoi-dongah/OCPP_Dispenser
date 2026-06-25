@@ -97,7 +97,7 @@ public class ProductTestLoadFragment extends Fragment implements View.OnClickLis
         controlBoard = ((MainActivity) MainActivity.mContext).getControlBoard();
         for (int i = 0; i < GlobalVariables.maxChannel; i++) {
             controlBoard.getTxData(i).setChargerPointMode((short) 1);
-            controlBoard.getTxData(i).setTestDualSingle((short) 2);
+//            controlBoard.getTxData(i).setTestDualSingle((short) 2); // dispenser 사용x
 
         }
         editDrV1 = view.findViewById(R.id.editDrV1);

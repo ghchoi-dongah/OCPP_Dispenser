@@ -404,7 +404,7 @@ public class ClassUiProcess implements RfCardReaderListener {
                             } else if (chargingCurrentData.isUserStop() && chargingCurrentData.getStopReason() != Reason.EVDisconnected) {
                                 chargingCurrentData.setStopReason(Reason.Local);
                             }
-                            chargingCurrentData.setPowerMeterStop(rxData.getActiveEnergy());
+                            chargingCurrentData.setPowerMeterStop(rxData.getPowerMeter()*10);
                             chargingCurrentData.setChargingEndTime(zonedDateTimeConvert.getStringCurrentTimeZone());
                             chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing); // 최초 진입 완료 표시
                             socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
@@ -499,7 +499,7 @@ public class ClassUiProcess implements RfCardReaderListener {
 //                                    onBatteryInfoStop();
 //                                }
                                 chargingCurrentData.setUserStop(false);
-                                chargingCurrentData.setPowerMeterStop(rxData.getActiveEnergy());
+                                chargingCurrentData.setPowerMeterStop(rxData.getPowerMeter()*10);
                                 chargingCurrentData.setChargingEndTime(zonedDateTimeConvert.getStringCurrentTimeZone());
                                 chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing);
                                 //socket receive message get instance

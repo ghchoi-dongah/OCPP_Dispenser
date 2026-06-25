@@ -172,10 +172,10 @@ public class ProductTestTotalLoadFragment extends Fragment implements View.OnCli
             }
         } else if (Objects.equals(getId, R.id.btnCH1)) {
             selectChannel = 0;
-            controlBoard.getTxData(0).setTestDualSingle((short) 0);
+//            controlBoard.getTxData(0).setTestDualSingle((short) 0); // dispenser 사용x
         } else if (Objects.equals(getId, R.id.btnCH2)) {
             selectChannel = 1;
-            controlBoard.getTxData(0).setTestDualSingle((short) 1);
+//            controlBoard.getTxData(0).setTestDualSingle((short) 1); // dispenser 사용x
         } else if (Objects.equals(getId, R.id.btnTotalStart)) {
             btnCH1.setEnabled(false);
             btnCH2.setEnabled(false);
@@ -205,7 +205,7 @@ public class ProductTestTotalLoadFragment extends Fragment implements View.OnCli
     public void onDetach() {
         super.onDetach();
         btnTotalStop.performClick();
-        controlBoard.getTxData(0).setTestDualSingle((short) 2);
+//        controlBoard.getTxData(0).setTestDualSingle((short) 2); // dispenser 사용x
         statusHandler.removeCallbacks(statusRunnable);
         statusHandler.removeCallbacksAndMessages(null);
         statusHandler.removeMessages(0);
