@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="securityProfile">
+        <item>0 - 없음 (WS)</item>
+        <item>1 - Basic Auth (WS)</item>
+        <item>2 - TLS + Basic Auth (WSS)</item>
+    </string-array>
+</resources>

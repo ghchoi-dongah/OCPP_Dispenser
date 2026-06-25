@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="chargerModel">
+        <item> DEVS050D</item>
+        <item> DEVS100D</item>
+    </string-array>
+</resources>
