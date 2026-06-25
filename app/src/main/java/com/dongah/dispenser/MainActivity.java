@@ -55,6 +55,7 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
@@ -66,7 +67,7 @@ public class MainActivity extends AppCompatActivity {
 
     public static final Logger logger = LoggerFactory.getLogger(MainActivity.class);
 
-    private static final String PACKAGE_NAME = "com.dongah.dispenserstarter";
+    private static final String PACKAGE_NAME = "com.dongah.dispenser";
 
     @SuppressLint("StaticFieldLeak")
     public static Context mContext;
@@ -76,7 +77,7 @@ public class MainActivity extends AppCompatActivity {
     ImageView imgNetwork;
     Runnable runnable;
     Handler handler = new Handler();
-    Boolean isHome = false;
+
 
     ChargerConfiguration chargerConfiguration;
     ClassUiProcess[] classUiProcess;
@@ -101,9 +102,6 @@ public class MainActivity extends AppCompatActivity {
     ClientSocket clientSocket;
 
 
-
-    public Boolean getIsHome() { return isHome; }
-    public void setIsHome(boolean isHome) { this.isHome = isHome; }
     public ToastPositionMake getToastPositionMake() {
         return toastPositionMake;
     }
@@ -159,6 +157,7 @@ public class MainActivity extends AppCompatActivity {
     public ConfigurationKeyRead getConfigurationKeyRead() {
         return configurationKeyRead;
     }
+
 
     @RequiresApi(api = Build.VERSION_CODES.O)
     @SuppressLint("SetTextI18n")
@@ -219,34 +218,14 @@ public class MainActivity extends AppCompatActivity {
         processHandler = new ProcessHandler(chargerConfiguration);
 
         // 6. ChargerOperate read
-        File file = new File(GlobalVariables.getRootPath() + File.separator + "ChargerOperate");
-        if (file.exists()) {
-            FileReader fileReader = null;
-            try {
-                fileReader = new FileReader(file);
-                BufferedReader bufferedReader = new BufferedReader(fileReader);
-                String line;
-                int count = 0;
-                while ((line = bufferedReader.readLine()) != null) {
-                    GlobalVariables.ChargerOperation[count] = Objects.equals(line, "true");
-                    count++;
-                }
-            } catch (IOException e) {
-                logger.error("ChargerOperate read error : {}", e.getMessage());
-            }
-        } else {
-            for (int i = 0; i < GlobalVariables.maxPlugCount; i++) {
-                GlobalVariables.ChargerOperation[i] = true;
-            }
-        }
+        onChargerOperate();
 
         // TEST 동아 서버
         String _sp = GlobalVariables.getSecurityProfile();
-        String baseUrl = (Objects.equals(_sp, "2") || Objects.equals(_sp, "3") ? "wss://" : "ws://") +  chargerConfiguration.getServerConnectingString() + ":" + chargerConfiguration.getServerPort() + "/" +
-                chargerConfiguration.getChargerId();
+        String baseUrl = (Objects.equals(_sp, "2") || Objects.equals(_sp, "3") ? "wss://" : "ws://") +  chargerConfiguration.getServerConnectingString() +
+                ":" + chargerConfiguration.getServerPort() + "/" + chargerConfiguration.getChargerId();
 
         //스마트 그리드 테스트용
-//
 //        String baseUrl =  (GlobalVariables.getSecurityProfile().equals("2") ? "wss://" : "ws://") + chargerConfiguration.getServerConnectingString() + ":" +
 //                chargerConfiguration.getServerPort() + "/" + chargerConfiguration.getChargerId() ;
 
@@ -356,6 +335,7 @@ public class MainActivity extends AppCompatActivity {
     public void onRebooting() {
         try {
             boolean result = false;
+            // TODO : check
             for (int i = 0; i < GlobalVariables.maxChannel; i++) {
                 result = chargingCurrentData[i].isReBoot() && (getClassUiProcess(i).getUiSeq() == UiSeq.INIT);
             }
@@ -369,6 +349,27 @@ public class MainActivity extends AppCompatActivity {
 
         } catch (Exception e) {
             logger.error(" version reboot : {}", e.getMessage());
+        }
+    }
+
+    private void onChargerOperate() {
+        File file = new File(GlobalVariables.getRootPath() + File.separator + "ChargerOperate");
+        if (file.exists()) {
+            try {
+                FileReader fileReader = new FileReader(file);
+                BufferedReader bufferedReader = new BufferedReader(fileReader);
+                String line;
+                int count = 0;
+                while ((line = bufferedReader.readLine()) != null) {
+                    GlobalVariables.ChargerOperation[count] = Objects.equals(line, "true");
+                    count++;
+                }
+            } catch (IOException e) {
+                Arrays.fill(GlobalVariables.ChargerOperation, true);
+                logger.error("ChargerOperate read error : {}", e.getMessage());
+            }
+        } else {
+            Arrays.fill(GlobalVariables.ChargerOperation, true);
         }
     }
 
