@@ -165,95 +165,10 @@ public class ClassUiProcess implements RfCardReaderListener {
             switch (getUiSeq()) {
                 case NONE:
                 case INIT:
-                    setoSeq(UiSeq.INIT);
-                    setPowerMeterCheck(0);
-                    plugCheckCounter = 0;
-                    onMeterValueStop();
-                    onMeterValuesAlignedDataStop();
-                    if (chargingCurrentData.isReBoot() && onRebootCheck()) {
-                        setUiSeq(UiSeq.REBOOTING);
-                    }
-                    if (chargingCurrentData.getChargePointStatus() == ChargePointStatus.Reserved) {
-                        String currentTime = zonedDateTimeConvert.doGetUtcDatetimeAsStringSimple();
-                        if (currentTime.compareTo(chargingCurrentData.getResExpiryDate()) > 0) {
-                            // available
-                            chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
-                            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-                            processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                    GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                    chargingCurrentData.getResConnectorId(),
-                                    0,
-                                    null,
-                                    null,
-                                    null,
-                                    false));
-                            chargingCurrentData.setResConnectorId(0);
-                            chargingCurrentData.setResIdTag("");
-                            chargingCurrentData.setResExpiryDate("");
-                            chargingCurrentData.setResReservationId("");
-                            chargingCurrentData.setResParentIdTag("");
-                            chargingCurrentData.setReservedStatus(ChargePointStatus.Available);
-                        }
-                    }
-                    chargingCurrentData.setUserStop(false);
-                    targetSoc = 0;
-                    // OCPP TC_003 cable-first flow: cpVoltage 상승 에지(>=110→<110)일 때만 MEMBER_CARD로 전환
-                    // 충전 종료 후 케이블이 연결된 채 INIT 재진입 시 중복 전환 방지
-                    // RemoteStart 진행 중이면 MEMBER_CARD 전환하지 않음 — 케이블 연결 시 PLUG_CHECK로 재진입
-                    if (Objects.equals(chargerConfiguration.getAuthMode(), "0") &&
-                            !chargingCurrentData.isReBoot() &&
-                            !chargingCurrentData.isRemoteStart() &&
-                            GlobalVariables.isConnectRetry() &&
-                            rxData.getCpVoltage() < 110 && !prevCsPilot) {
-                        socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-                        if (socketReceiveMessage != null &&
-                                socketReceiveMessage.getSocket() != null) {
-                            if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing)) {
-                                chargingCurrentData.onCurrentDataClear();
-                                chargingCurrentData.setChargePointStatus(ChargePointStatus.Preparing);
-                                // StatusNotification(Preparing)은 온라인일 때만 전송 (오프라인 오프차지 시 덤프 불필요)
-                                if (GlobalVariables.isConnectRetry() &&
-                                        socketReceiveMessage.getSocket().getState() == SocketState.OPEN) {
-                                    processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                            GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                            ch + 1, 0, null, null, null, false));
-                                }
-                            }
-                            chargingCurrentData.setConnectorId(ch + 1);
-                            setUiSeq(UiSeq.MEMBER_CARD);
-                            fragmentChange.onFragmentChange(ch, UiSeq.MEMBER_CARD, "MEMBER_CARD", null);
-                        }
-                    } else if (chargingCurrentData.isRemoteStart() &&
-                            !chargingCurrentData.isReBoot() &&
-                            rxData.getCpVoltage() < 110 && !prevCsPilot) {
-                        // RemoteStart 진행 중 케이블 감지 시 PLUG_CHECK 재진입
-                        setUiSeq(UiSeq.PLUG_CHECK);
-                        fragmentChange.onFragmentChange(ch, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
-                    } else if (Objects.equals(chargerConfiguration.getAuthMode(), "2") &&
-                            !chargingCurrentData.isReBoot() &&
-                            rxData.getCpVoltage() < 110 && !prevCsPilot) {
-                        chargingCurrentData.onCurrentDataClear();
-                        chargingCurrentData.setConnectorId(ch + 1);
-                        chargingCurrentData.setIdTag("");
-                        setUiSeq(UiSeq.PLUG_CHECK);
-                        fragmentChange.onFragmentChange(ch, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
-                    }
-                    // Preparing 상태에서 케이블 제거(cpVoltage >= 11.0V, 하강 에지) → Available 전송
-                    if (Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing)
-                            && rxData.getCpVoltage() >= 110 && prevCsPilot) {
-                        chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
-                        socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-                        processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                ch + 1, 0, null, null, null, false));
-                    }
+                    handleInit(rxData);
                     break;
                 case REBOOTING:
-                    if (!rebootInitiated) {
-                        rebootInitiated = true;
-                        String rebootType = chargingCurrentData.getStopReason() == Reason.HardReset ? "Hard" : "Soft";
-                        fragmentChange.onFragmentChange(getCh(), UiSeq.REBOOTING, "REBOOTING", rebootType);
-                    }
+                    handleRebooting();
                     break;
                 case MEMBER_CARD:
                 case MEMBER_CARD_WAIT:
@@ -261,306 +176,24 @@ public class ClassUiProcess implements RfCardReaderListener {
                 case CREDIT_CARD_WAIT:
                     break;
                 case PLUG_CHECK:
-                    if (rxData.isCsPilot()) {
-                        plugCheckCounter = 0;
-                        controlBoard.getTxData(getCh()).setStart(true);
-                        controlBoard.getTxData(getCh()).setStop(false);
-                        setUiSeq(UiSeq.CONNECT_CHECK);
-                    } else {
-                        plugCheckCounter++;
-                        if (!chargingCurrentData.isRemoteStart() && GlobalVariables.getConnectionTimeOut() > 0 && plugCheckCounter * 2 >= GlobalVariables.getConnectionTimeOut()) {
-                            plugCheckCounter = 0;
-                            chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
-                            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-                            processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                    GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                    chargingCurrentData.getConnectorId(),
-                                    0, null, null, null, false));
-                            setUiSeq(UiSeq.INIT);
-                            fragmentChange.onFragmentChange(ch, UiSeq.INIT, "INIT", null);
-                        }
-                    }
+                    handlePlugCheck(rxData);
                     break;
                 case CONNECT_CHECK:
-                    if (rxData.isCsStart()) {
-                        chargingCurrentData.setChargePointStatus(ChargePointStatus.Charging);
-                        chargingCurrentData.setTransactionId(0);
-                        powerUnitPrice = Objects.equals(chargerConfiguration.getAuthMode(), "0") ?
-                                chargingCurrentData.getPowerUnitPrice() : Double.parseDouble(chargerConfiguration.getTestPrice());
-                        chargingCurrentData.setPowerMeterStart(rxData.getPowerMeter() * 10);
-                        chargingCurrentData.setPowerMeterCalculate(rxData.getPowerMeter());
-                        chargingCurrentData.setChargingStartTime(zonedDateTimeConvert.getStringCurrentTimeZone());
-                        //Auto 및 Test
-                        //socket receive message get instance
-                        if (Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
-                            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-                            //meter values start
-                            if (GlobalVariables.getMeterValueSampleInterval() > 0) {
-                                onMeterValueStart(chargingCurrentData.getConnectorId(), GlobalVariables.getMeterValueSampleInterval());
-                            }
-                            //ClockAlignedDataInterval
-                            if (GlobalVariables.getClockAlignedDataInterval() > 0) {
-                                onMeterValuesAlignedDataStart(chargingCurrentData.getConnectorId(), GlobalVariables.getClockAlignedDataInterval());
-                            }
-
-                            //start transaction send to server
-                            setUiSeq(UiSeq.CHARGING);
-                            if (socketReceiveMessage.getSocket().getState() != SocketState.OPEN) {
-                                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(getCh(), UiSeq.CHARGING, "CHARGING", null);
-                            }
-                            processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                    GlobalVariables.MESSAGE_HANDLER_START_TRANSACTION,
-                                    chargingCurrentData.getConnectorId(),
-                                    0,
-                                    chargingCurrentData.getIdTag(),
-                                    null,
-                                    null,
-                                    false));
-                            // StatusNotification(Charging)은 StartTransaction.conf(Accepted) 수신 후 전송
-                        } else {
-                            setUiSeq(UiSeq.CHARGING);
-                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(getCh(), UiSeq.CHARGING, "CHARGING", null);
-                        }
-                    }
+                    handleConnectCheck(rxData);
                     break;
                 case CHARGING:
-                    try {
-                        //충전 사용량 계산
-                        onUsePowerMeter(ch, rxData);
-                        txData.setUiSequence((short) 2);
-                        //stop 조건
-                        if (!GlobalVariables.isStopTransactionOnEVSideDisconnect() &&
-                                !GlobalVariables.isUnlockConnectorOnEVSideDisconnect()) {
-                            if (rxData.isCsStop() || !rxData.isCsPilot()) { //|| targetSoc >= 100 ) {
-                                if (chargingCurrentData.getStopReason() == Reason.Remote || chargingCurrentData.isUserStop()) {
-                                    onStop();
-                                    if (!rxData.isCsPilot()) {
-                                        //status notification send to server : ChargePointStatus.SuspendedEV
-                                        //2.4.5. EV Side Disconnected
-                                        chargingCurrentData.setStopReason(Reason.EVDisconnected);
-                                        processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                                GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                                chargingCurrentData.getConnectorId(),
-                                                0,
-                                                null,
-                                                null,
-                                                null,
-                                                false));
-                                    }
-                                    setUiSeq(UiSeq.FINISH_WAIT);
-                                }
-                            }
-                        } else {
-                            if (rxData.isCsStop() || !rxData.isCsPilot() || chargingCurrentData.isUserStop() ||
-                                    (rxData.getSoc() >= chargerConfiguration.getTargetSoc() && chargerConfiguration.getTargetSoc() != 0)) {
-//                                    (chargingCurrentData.getHmChargingLimitFee() <= chargingCurrentData.getPowerMeterUsePay())) {
-                                controlBoard.getTxData(getCh()).setStop(true);
-                                controlBoard.getTxData(getCh()).setStart(false);
-                                if (!rxData.isCsPilot()) {
-                                    //status notification send to server : ChargePointStatus.SuspendedEV
-                                    //2.4.5. EV Side Disconnected
-                                    chargingCurrentData.setStopReason(Reason.EVDisconnected);
-//                                    processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-//                                            GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-//                                            chargingCurrentData.getConnectorId(),
-//                                            0,
-//                                            null,
-//                                            null,
-//                                            null,
-//                                            false));
-                                }
-                                setUiSeq(UiSeq.FINISH_WAIT);
-                            } else if (chargingCurrentData.isPrePaymentResult() &&
-                                    (chargingCurrentData.getPrePayment() <= chargingCurrentData.getPowerMeterUsePay())) {
-//                                            || chargingCurrentData.getHmChargingLimitFee() <= chargingCurrentData.getPowerMeterUsePay())) {
-                                controlBoard.getTxData(getCh()).setStop(true);
-                                controlBoard.getTxData(getCh()).setStart(false);
-                                chargingCurrentData.setPowerMeterUsePay(chargingCurrentData.getPrePayment());
-                                chargingCurrentData.setStopReason(Reason.Other);
-                                setUiSeq(UiSeq.FINISH_WAIT);
-                            }
-                        }
-                    } catch (Exception e) {
-                        logger.error("classUiProcess - charging error : {}", e.getMessage());
-                    }
+                    handleCharging(rxData, txData);
                     break;
                 case FINISH_WAIT:
-                    try {
-                        txData.setUiSequence((short) 3);
-
-                        if (chargingCurrentData.getChargePointStatus() != ChargePointStatus.Finishing) {
-                            // ── 최초 진입: 미터 정지, 종료 이유 결정, StopTransaction 전송 ──
-                            onMeterValueStop();
-                            if (GlobalVariables.isStopTransactionOnEVSideDisconnect() &&
-                                    (rxData.isCsStop() || !rxData.isCsPilot()) &&
-                                    !chargingCurrentData.isUserStop() &&
-                                    !(rxData.getSoc() >= chargerConfiguration.getTargetSoc() && chargerConfiguration.getTargetSoc() != 0) &&
-                                    chargingCurrentData.getStopReason() != Reason.Remote &&
-                                    chargingCurrentData.getStopReason() != Reason.DeAuthorized &&
-                                    chargingCurrentData.getStopReason() != Reason.HardReset &&
-                                    chargingCurrentData.getStopReason() != Reason.SoftReset &&
-                                    chargingCurrentData.getStopReason() != Reason.PowerLoss) {
-                                chargingCurrentData.setStopReason(Reason.EVDisconnected);
-                            } else if (chargingCurrentData.isUserStop() && chargingCurrentData.getStopReason() != Reason.EVDisconnected) {
-                                chargingCurrentData.setStopReason(Reason.Local);
-                            }
-                            chargingCurrentData.setPowerMeterStop(rxData.getPowerMeter()*10);
-                            chargingCurrentData.setChargingEndTime(zonedDateTimeConvert.getStringCurrentTimeZone());
-                            chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing); // 최초 진입 완료 표시
-                            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-                            if (Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
-                                // StopTx 메시지 enqueue 전에 먼저 플래그 설정:
-                                // ProcessHandler(메인 스레드)보다 ClassUiProcess(백그라운드)가 먼저 csStop을
-                                // 검사하는 레이스 컨디션 방지 → csStop 경로가 Finishing을 중복 전송하지 않도록
-                                chargingCurrentData.setPendingStopTxConf(true);
-                                processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                        GlobalVariables.MESSAGE_HANDLER_STOP_TRANSACTION,
-                                        chargingCurrentData.getConnectorId(),
-                                        0,
-                                        chargingCurrentData.getIdTag(),
-                                        null,
-                                        null,
-                                        false));
-                                // HardReset/SoftReset: 재부팅 후 boot StatusNotification에서 Finishing 전송용 플래그 저장
-                                if (chargingCurrentData.getStopReason() == Reason.HardReset ||
-                                        chargingCurrentData.getStopReason() == Reason.SoftReset) {
-                                    new com.dongah.dispenser.utils.FileManagement().fileCreate(
-                                            "HardResetFinishing_" + chargingCurrentData.getConnectorId(),
-                                            String.valueOf(chargingCurrentData.getConnectorId()));
-                                }
-                            }
-                        }
-
-                        // csStop 확인 후 ChargingFinish 전환 + StatusNotification(Finishing) 전송
-                        // pendingStopTxConf=true: StopTx.conf 대기 중 → 건너뜀
-                        // finishingNotifSent=true: StopTx.conf 핸들러가 이미 전송 → 중복 방지 (TC_32)
-                        if (rxData.isCsStop()) {
-                            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-                            if (Objects.equals(chargerConfiguration.getAuthMode(), "0") &&
-                                    !chargingCurrentData.isPendingStopTxConf() &&
-                                    !chargingCurrentData.isFinishingNotifSent()) {
-                                chargingCurrentData.setFinishingNotifSent(true);
-                                processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                        GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION_ONCE,
-                                        chargingCurrentData.getConnectorId(),
-                                        0,
-                                        null,
-                                        null,
-                                        "Finishing",
-                                        false));
-                            }
-                            setUiSeq(UiSeq.FINISH);
-                            fragmentChange.onFragmentChange(getCh(), UiSeq.FINISH, "FINISH", null);
-                        }
-                    } catch (Exception e) {
-                        logger.error("classUiProcess - FINISH_WAIT error : {} ", e.getMessage());
-                    }
+                    handleFinishWait(rxData, txData);
                     break;
                 case FINISH:
-                    onMeterValueStop();
-                    onMeterValuesAlignedDataStop();
-                    Thread.sleep(5000);
-                    onFinish();
-                    //reserved check
-                    if (Objects.equals(chargingCurrentData.getIdTag(), chargingCurrentData.getResIdTag()) ||
-                            Objects.equals(chargingCurrentData.getParentIdTag(), chargingCurrentData.getResParentIdTag())) {
-                        chargingCurrentData.setResConnectorId(0);
-                        chargingCurrentData.setResIdTag("");
-                        chargingCurrentData.setResExpiryDate("");
-                        chargingCurrentData.setResReservationId("");
-                        chargingCurrentData.setResParentIdTag("");
-                        chargingCurrentData.setReservedStatus(ChargePointStatus.Available);
-                    }
-                    if (!rxData.isCsPilot() && Objects.equals(ChargePointStatus.Finishing, chargingCurrentData.getChargePointStatus())) {
-                        chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
-                        processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                chargingCurrentData.getConnectorId(),
-                                0,
-                                null,
-                                null,
-                                null,
-                                false));
-                    }
+                    handleFinish(rxData);
                     break;
                 case FAULT:
-                    //* fault check */
-                    if (getUiSeq().getValue() < 15) {
-                        if (!(getCurrentFragment() instanceof FaultFragment)) {
-                            // server mode 및 charging
-                            if (Objects.equals(chargerConfiguration.getAuthMode(), "0") &&
-                                    Objects.equals(getoSeq(), UiSeq.CHARGING)) {
-                                // meter values stop
-                                onMeterValueStop();
-                                txData.setStart(false);
-                                txData.setStop(true);
-                                //PLC USed
-//                                if (chargerConfiguration.isUsedPLC()) {
-//                                    onBatteryInfoStop();
-//                                }
-                                chargingCurrentData.setUserStop(false);
-                                chargingCurrentData.setPowerMeterStop(rxData.getPowerMeter()*10);
-                                chargingCurrentData.setChargingEndTime(zonedDateTimeConvert.getStringCurrentTimeZone());
-                                chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing);
-                                //socket receive message get instance
-                                socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-                                SocketState state = socketReceiveMessage.getSocket().getState();
-                                if (Objects.equals(state.getValue(), 7) && Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
-                                    //server send
-                                    processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                            GlobalVariables.MESSAGE_HANDLER_STOP_TRANSACTION,
-                                            chargingCurrentData.getConnectorId(),
-                                            0,
-                                            chargingCurrentData.getIdTag(),
-                                            null,
-                                            null,
-                                            false));
-                                    //status notification send to server
-                                    processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                            GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                            chargingCurrentData.getConnectorId(),
-                                            0,
-                                            null,
-                                            null,
-                                            null,
-                                            false));
-                                }
-                            }
-                            fragmentChange.onFragmentChange(getCh(), UiSeq.FAULT, "FAULT", "1");
-                        }
-                    }
-                    //fault 가 해제가 되면..........
-                    if (controlBoard.isConnected() && !rxData.isCsFault()) {
-                        if (Objects.equals(getoSeq(), UiSeq.CHARGING)) {
-                            txData.setUiSequence((short) 3);
-                            chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing);
-                            chargingCurrentData.setChargePointErrorCode(ChargePointErrorCode.NoError);
-                            setUiSeq(UiSeq.FINISH);
-                            fragmentChange.onFragmentChange(getCh(), UiSeq.FINISH, "FINISH", null);
-                        } else {
-                            if (Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing) &&
-                                    rxData.getCpVoltage() >= 110) {
-                                chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
-                                //socket receive message get instance
-                                socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-                                SocketState state = socketReceiveMessage.getSocket().getState();
-                                if (Objects.equals(state.getValue(), 7) && Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
-                                    processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                            GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                            chargingCurrentData.getConnectorId(),
-                                            0,
-                                            null,
-                                            null,
-                                            null,
-                                            false));
-                                }
-                            }
-                            onHome();
-                        }
-                    }
+                    handleFault(rxData, txData);
                     break;
             }
-
             prevCsPilot = rxData.getCpVoltage() < 110;
         } catch (Exception e) {
             logger.error(" onEventAction() exception error : {}", e.getMessage());
@@ -962,6 +595,412 @@ public class ClassUiProcess implements RfCardReaderListener {
                 }
             } catch (Exception e) {
                 logger.error("onRfCardDataReceiveEvent error : {} ", e.getMessage());
+            }
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private void handleInit(RxData rxData) {
+        setoSeq(UiSeq.INIT);
+        setPowerMeterCheck(0);
+        plugCheckCounter = 0;
+        onMeterValueStop();
+        onMeterValuesAlignedDataStop();
+        if (chargingCurrentData.isReBoot() && onRebootCheck()) {
+            setUiSeq(UiSeq.REBOOTING);
+        }
+        if (chargingCurrentData.getChargePointStatus() == ChargePointStatus.Reserved) {
+            String currentTime = zonedDateTimeConvert.doGetUtcDatetimeAsStringSimple();
+            if (currentTime.compareTo(chargingCurrentData.getResExpiryDate()) > 0) {
+                // available
+                chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
+                socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+                processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                        GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+                        chargingCurrentData.getResConnectorId(),
+                        0,
+                        null,
+                        null,
+                        null,
+                        false));
+                chargingCurrentData.setResConnectorId(0);
+                chargingCurrentData.setResIdTag("");
+                chargingCurrentData.setResExpiryDate("");
+                chargingCurrentData.setResReservationId("");
+                chargingCurrentData.setResParentIdTag("");
+                chargingCurrentData.setReservedStatus(ChargePointStatus.Available);
+            }
+        }
+        chargingCurrentData.setUserStop(false);
+        targetSoc = 0;
+        // OCPP TC_003 cable-first flow: cpVoltage 상승 에지(>=110→<110)일 때만 MEMBER_CARD로 전환
+        // 충전 종료 후 케이블이 연결된 채 INIT 재진입 시 중복 전환 방지
+        // RemoteStart 진행 중이면 MEMBER_CARD 전환하지 않음 — 케이블 연결 시 PLUG_CHECK로 재진입
+        if (Objects.equals(chargerConfiguration.getAuthMode(), "0") &&
+                !chargingCurrentData.isReBoot() &&
+                !chargingCurrentData.isRemoteStart() &&
+                GlobalVariables.isConnectRetry() &&
+                rxData.getCpVoltage() < 110 && !prevCsPilot) {
+            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+            if (socketReceiveMessage != null &&
+                    socketReceiveMessage.getSocket() != null) {
+                if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing)) {
+                    chargingCurrentData.onCurrentDataClear();
+                    chargingCurrentData.setChargePointStatus(ChargePointStatus.Preparing);
+                    // StatusNotification(Preparing)은 온라인일 때만 전송 (오프라인 오프차지 시 덤프 불필요)
+                    if (GlobalVariables.isConnectRetry() &&
+                            socketReceiveMessage.getSocket().getState() == SocketState.OPEN) {
+                        processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                                GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+                                ch + 1, 0, null, null, null, false));
+                    }
+                }
+                chargingCurrentData.setConnectorId(ch + 1);
+                setUiSeq(UiSeq.MEMBER_CARD);
+                fragmentChange.onFragmentChange(ch, UiSeq.MEMBER_CARD, "MEMBER_CARD", null);
+            }
+        } else if (chargingCurrentData.isRemoteStart() &&
+                !chargingCurrentData.isReBoot() &&
+                rxData.getCpVoltage() < 110 && !prevCsPilot) {
+            // RemoteStart 진행 중 케이블 감지 시 PLUG_CHECK 재진입
+            setUiSeq(UiSeq.PLUG_CHECK);
+            fragmentChange.onFragmentChange(ch, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+        } else if (Objects.equals(chargerConfiguration.getAuthMode(), "2") &&
+                !chargingCurrentData.isReBoot() &&
+                rxData.getCpVoltage() < 110 && !prevCsPilot) {
+            chargingCurrentData.onCurrentDataClear();
+            chargingCurrentData.setConnectorId(ch + 1);
+            chargingCurrentData.setIdTag("");
+            setUiSeq(UiSeq.PLUG_CHECK);
+            fragmentChange.onFragmentChange(ch, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+        }
+        // Preparing 상태에서 케이블 제거(cpVoltage >= 11.0V, 하강 에지) → Available 전송
+        if (Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing)
+                && rxData.getCpVoltage() >= 110 && prevCsPilot) {
+            chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
+            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+            processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                    GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+                    ch + 1, 0, null, null, null, false));
+        }
+    }
+
+    private void handleRebooting() {
+        if (!rebootInitiated) {
+            rebootInitiated = true;
+            String rebootType = chargingCurrentData.getStopReason() == Reason.HardReset ? "Hard" : "Soft";
+            fragmentChange.onFragmentChange(getCh(), UiSeq.REBOOTING, "REBOOTING", rebootType);
+        }
+    }
+
+    private void handlePlugCheck(RxData rxData) {
+        if (rxData.isCsPilot()) {
+            plugCheckCounter = 0;
+            controlBoard.getTxData(getCh()).setStart(true);
+            controlBoard.getTxData(getCh()).setStop(false);
+            setUiSeq(UiSeq.CONNECT_CHECK);
+        } else {
+            plugCheckCounter++;
+            if (!chargingCurrentData.isRemoteStart() && GlobalVariables.getConnectionTimeOut() > 0 && plugCheckCounter * 2 >= GlobalVariables.getConnectionTimeOut()) {
+                plugCheckCounter = 0;
+                chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
+                socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+                processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                        GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+                        chargingCurrentData.getConnectorId(),
+                        0, null, null, null, false));
+                setUiSeq(UiSeq.INIT);
+                fragmentChange.onFragmentChange(ch, UiSeq.INIT, "INIT", null);
+            }
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private void handleConnectCheck(RxData rxData) {
+        if (rxData.isCsStart()) {
+            chargingCurrentData.setChargePointStatus(ChargePointStatus.Charging);
+            chargingCurrentData.setTransactionId(0);
+            powerUnitPrice = Objects.equals(chargerConfiguration.getAuthMode(), "0") ?
+                    chargingCurrentData.getPowerUnitPrice() : Double.parseDouble(chargerConfiguration.getTestPrice());
+            chargingCurrentData.setPowerMeterStart(rxData.getPowerMeter() * 10);
+            chargingCurrentData.setPowerMeterCalculate(rxData.getPowerMeter());
+            chargingCurrentData.setChargingStartTime(zonedDateTimeConvert.getStringCurrentTimeZone());
+            //Auto 및 Test
+            //socket receive message get instance
+            if (Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
+                socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+                //meter values start
+                if (GlobalVariables.getMeterValueSampleInterval() > 0) {
+                    onMeterValueStart(chargingCurrentData.getConnectorId(), GlobalVariables.getMeterValueSampleInterval());
+                }
+                //ClockAlignedDataInterval
+                if (GlobalVariables.getClockAlignedDataInterval() > 0) {
+                    onMeterValuesAlignedDataStart(chargingCurrentData.getConnectorId(), GlobalVariables.getClockAlignedDataInterval());
+                }
+
+                //start transaction send to server
+                setUiSeq(UiSeq.CHARGING);
+                if (socketReceiveMessage.getSocket().getState() != SocketState.OPEN) {
+                    ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(getCh(), UiSeq.CHARGING, "CHARGING", null);
+                }
+                processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                        GlobalVariables.MESSAGE_HANDLER_START_TRANSACTION,
+                        chargingCurrentData.getConnectorId(),
+                        0,
+                        chargingCurrentData.getIdTag(),
+                        null,
+                        null,
+                        false));
+                // StatusNotification(Charging)은 StartTransaction.conf(Accepted) 수신 후 전송
+            } else {
+                setUiSeq(UiSeq.CHARGING);
+                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(getCh(), UiSeq.CHARGING, "CHARGING", null);
+            }
+        }
+    }
+
+    private void handleCharging(RxData rxData, TxData txData) {
+        try {
+            //충전 사용량 계산
+            onUsePowerMeter(ch, rxData);
+            txData.setUiSequence((short) 2);
+            //stop 조건
+            if (!GlobalVariables.isStopTransactionOnEVSideDisconnect() &&
+                    !GlobalVariables.isUnlockConnectorOnEVSideDisconnect()) {
+                if (rxData.isCsStop() || !rxData.isCsPilot()) { //|| targetSoc >= 100 ) {
+                    if (chargingCurrentData.getStopReason() == Reason.Remote || chargingCurrentData.isUserStop()) {
+                        onStop();
+                        if (!rxData.isCsPilot()) {
+                            //status notification send to server : ChargePointStatus.SuspendedEV
+                            //2.4.5. EV Side Disconnected
+                            chargingCurrentData.setStopReason(Reason.EVDisconnected);
+                            processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                                    GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+                                    chargingCurrentData.getConnectorId(),
+                                    0,
+                                    null,
+                                    null,
+                                    null,
+                                    false));
+                        }
+                        setUiSeq(UiSeq.FINISH_WAIT);
+                    }
+                }
+            } else {
+                if (rxData.isCsStop() || !rxData.isCsPilot() || chargingCurrentData.isUserStop() ||
+                        (rxData.getSoc() >= chargerConfiguration.getTargetSoc() && chargerConfiguration.getTargetSoc() != 0)) {
+//                                    (chargingCurrentData.getHmChargingLimitFee() <= chargingCurrentData.getPowerMeterUsePay())) {
+                    controlBoard.getTxData(getCh()).setStop(true);
+                    controlBoard.getTxData(getCh()).setStart(false);
+                    if (!rxData.isCsPilot()) {
+                        //status notification send to server : ChargePointStatus.SuspendedEV
+                        //2.4.5. EV Side Disconnected
+                        chargingCurrentData.setStopReason(Reason.EVDisconnected);
+//                                    processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+//                                            GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+//                                            chargingCurrentData.getConnectorId(),
+//                                            0,
+//                                            null,
+//                                            null,
+//                                            null,
+//                                            false));
+                    }
+                    setUiSeq(UiSeq.FINISH_WAIT);
+                } else if (chargingCurrentData.isPrePaymentResult() &&
+                        (chargingCurrentData.getPrePayment() <= chargingCurrentData.getPowerMeterUsePay())) {
+//                                            || chargingCurrentData.getHmChargingLimitFee() <= chargingCurrentData.getPowerMeterUsePay())) {
+                    controlBoard.getTxData(getCh()).setStop(true);
+                    controlBoard.getTxData(getCh()).setStart(false);
+                    chargingCurrentData.setPowerMeterUsePay(chargingCurrentData.getPrePayment());
+                    chargingCurrentData.setStopReason(Reason.Other);
+                    setUiSeq(UiSeq.FINISH_WAIT);
+                }
+            }
+        } catch (Exception e) {
+            logger.error("handleCharging error : {}", e.getMessage());
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private void handleFinishWait(RxData rxData, TxData txData) {
+        try {
+            txData.setUiSequence((short) 3);
+
+            if (chargingCurrentData.getChargePointStatus() != ChargePointStatus.Finishing) {
+                // ── 최초 진입: 미터 정지, 종료 이유 결정, StopTransaction 전송 ──
+                onMeterValueStop();
+                if (GlobalVariables.isStopTransactionOnEVSideDisconnect() &&
+                        (rxData.isCsStop() || !rxData.isCsPilot()) &&
+                        !chargingCurrentData.isUserStop() &&
+                        !(rxData.getSoc() >= chargerConfiguration.getTargetSoc() && chargerConfiguration.getTargetSoc() != 0) &&
+                        chargingCurrentData.getStopReason() != Reason.Remote &&
+                        chargingCurrentData.getStopReason() != Reason.DeAuthorized &&
+                        chargingCurrentData.getStopReason() != Reason.HardReset &&
+                        chargingCurrentData.getStopReason() != Reason.SoftReset &&
+                        chargingCurrentData.getStopReason() != Reason.PowerLoss) {
+                    chargingCurrentData.setStopReason(Reason.EVDisconnected);
+                } else if (chargingCurrentData.isUserStop() && chargingCurrentData.getStopReason() != Reason.EVDisconnected) {
+                    chargingCurrentData.setStopReason(Reason.Local);
+                }
+                chargingCurrentData.setPowerMeterStop(rxData.getPowerMeter()*10);
+                chargingCurrentData.setChargingEndTime(zonedDateTimeConvert.getStringCurrentTimeZone());
+                chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing); // 최초 진입 완료 표시
+                socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+                if (Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
+                    // StopTx 메시지 enqueue 전에 먼저 플래그 설정:
+                    // ProcessHandler(메인 스레드)보다 ClassUiProcess(백그라운드)가 먼저 csStop을
+                    // 검사하는 레이스 컨디션 방지 → csStop 경로가 Finishing을 중복 전송하지 않도록
+                    chargingCurrentData.setPendingStopTxConf(true);
+                    processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                            GlobalVariables.MESSAGE_HANDLER_STOP_TRANSACTION,
+                            chargingCurrentData.getConnectorId(),
+                            0,
+                            chargingCurrentData.getIdTag(),
+                            null,
+                            null,
+                            false));
+                    // HardReset/SoftReset: 재부팅 후 boot StatusNotification에서 Finishing 전송용 플래그 저장
+                    if (chargingCurrentData.getStopReason() == Reason.HardReset ||
+                            chargingCurrentData.getStopReason() == Reason.SoftReset) {
+                        new com.dongah.dispenser.utils.FileManagement().fileCreate(
+                                "HardResetFinishing_" + chargingCurrentData.getConnectorId(),
+                                String.valueOf(chargingCurrentData.getConnectorId()));
+                    }
+                }
+            }
+
+            // csStop 확인 후 ChargingFinish 전환 + StatusNotification(Finishing) 전송
+            // pendingStopTxConf=true: StopTx.conf 대기 중 → 건너뜀
+            // finishingNotifSent=true: StopTx.conf 핸들러가 이미 전송 → 중복 방지 (TC_32)
+            if (rxData.isCsStop()) {
+                socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+                if (Objects.equals(chargerConfiguration.getAuthMode(), "0") &&
+                        !chargingCurrentData.isPendingStopTxConf() &&
+                        !chargingCurrentData.isFinishingNotifSent()) {
+                    chargingCurrentData.setFinishingNotifSent(true);
+                    processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                            GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION_ONCE,
+                            chargingCurrentData.getConnectorId(),
+                            0,
+                            null,
+                            null,
+                            "Finishing",
+                            false));
+                }
+                setUiSeq(UiSeq.FINISH);
+                fragmentChange.onFragmentChange(getCh(), UiSeq.FINISH, "FINISH", null);
+            }
+        } catch (Exception e) {
+            logger.error("handleFinishWaitFINISH_WAIT error : {} ", e.getMessage());
+        }
+    }
+
+    private void handleFinish(RxData rxData) {
+        try {
+            onMeterValueStop();
+            onMeterValuesAlignedDataStop();
+            Thread.sleep(5000);
+            onFinish();
+            //reserved check
+            if (Objects.equals(chargingCurrentData.getIdTag(), chargingCurrentData.getResIdTag()) ||
+                    Objects.equals(chargingCurrentData.getParentIdTag(), chargingCurrentData.getResParentIdTag())) {
+                chargingCurrentData.setResConnectorId(0);
+                chargingCurrentData.setResIdTag("");
+                chargingCurrentData.setResExpiryDate("");
+                chargingCurrentData.setResReservationId("");
+                chargingCurrentData.setResParentIdTag("");
+                chargingCurrentData.setReservedStatus(ChargePointStatus.Available);
+            }
+            if (!rxData.isCsPilot() && Objects.equals(ChargePointStatus.Finishing, chargingCurrentData.getChargePointStatus())) {
+                chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
+                processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                        GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+                        chargingCurrentData.getConnectorId(),
+                        0,
+                        null,
+                        null,
+                        null,
+                        false));
+            }
+        } catch (Exception e) {
+            logger.error("handleFinish error : {}", e.getMessage());
+        }
+    }
+
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private void handleFault(RxData rxData, TxData txData) {
+        //* fault check */
+        if (getUiSeq().getValue() < 15) {
+            if (!(getCurrentFragment() instanceof FaultFragment)) {
+                // server mode 및 charging
+                if (Objects.equals(chargerConfiguration.getAuthMode(), "0") &&
+                        Objects.equals(getoSeq(), UiSeq.CHARGING)) {
+                    // meter values stop
+                    onMeterValueStop();
+                    txData.setStart(false);
+                    txData.setStop(true);
+                    //PLC USed
+//                                if (chargerConfiguration.isUsedPLC()) {
+//                                    onBatteryInfoStop();
+//                                }
+                    chargingCurrentData.setUserStop(false);
+                    chargingCurrentData.setPowerMeterStop(rxData.getPowerMeter()*10);
+                    chargingCurrentData.setChargingEndTime(zonedDateTimeConvert.getStringCurrentTimeZone());
+                    chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing);
+                    //socket receive message get instance
+                    socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+                    SocketState state = socketReceiveMessage.getSocket().getState();
+                    if (Objects.equals(state.getValue(), 7) && Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
+                        //server send
+                        processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                                GlobalVariables.MESSAGE_HANDLER_STOP_TRANSACTION,
+                                chargingCurrentData.getConnectorId(),
+                                0,
+                                chargingCurrentData.getIdTag(),
+                                null,
+                                null,
+                                false));
+                        //status notification send to server
+                        processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                                GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+                                chargingCurrentData.getConnectorId(),
+                                0,
+                                null,
+                                null,
+                                null,
+                                false));
+                    }
+                }
+                fragmentChange.onFragmentChange(getCh(), UiSeq.FAULT, "FAULT", "1");
+            }
+        }
+        //fault 가 해제가 되면..........
+        if (controlBoard.isConnected() && !rxData.isCsFault()) {
+            if (Objects.equals(getoSeq(), UiSeq.CHARGING)) {
+                txData.setUiSequence((short) 3);
+                chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing);
+                chargingCurrentData.setChargePointErrorCode(ChargePointErrorCode.NoError);
+                setUiSeq(UiSeq.FINISH);
+                fragmentChange.onFragmentChange(getCh(), UiSeq.FINISH, "FINISH", null);
+            } else {
+                if (Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing) &&
+                        rxData.getCpVoltage() >= 110) {
+                    chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
+                    //socket receive message get instance
+                    socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+                    SocketState state = socketReceiveMessage.getSocket().getState();
+                    if (Objects.equals(state.getValue(), 7) && Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
+                        processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
+                                GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+                                chargingCurrentData.getConnectorId(),
+                                0,
+                                null,
+                                null,
+                                null,
+                                false));
+                    }
+                }
+                onHome();
             }
         }
     }

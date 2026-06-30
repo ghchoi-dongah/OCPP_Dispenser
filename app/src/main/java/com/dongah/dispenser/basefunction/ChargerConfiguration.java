@@ -93,7 +93,7 @@ public class ChargerConfiguration {
      * charging point configuration setting
      */
     public String chargerPointVendor = "Dongah";
-    public String chargerPointModel = "DEV0100D00";
+    public String chargerPointModel = "DEVD240";
     public int chargerPointModelCode = 0;
     public String unitPriceVendorCode = "kr.co.dongah";
     public String chargerPointSerialNumber = "";

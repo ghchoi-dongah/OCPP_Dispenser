@@ -137,7 +137,6 @@ public class ProcessHandler extends Handler {
         int channel = bundle.getInt("connectorId") == 1 ? 0 : bundle.getInt("connectorId") == 2 ? 1 : bundle.getInt("connectorId");
         SocketReceiveMessage socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
         if (!Objects.equals(channel, 100)) {
-//            chargingCurrentData = ((MainActivity) MainActivity.mContext).getClassUiProcess(channel).getChargingCurrentData();
             chargingCurrentData = ((MainActivity) MainActivity.mContext).getChargingCurrentData(channel);
             setConnectorId(chargingCurrentData.getConnectorId());
         } else {
