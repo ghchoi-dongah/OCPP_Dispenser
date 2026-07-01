@@ -68,7 +68,7 @@ public class ChargerConfiguration {
     public int selectPaymentId;
 
     /**
-     * 0:server 2:auto 3:test 4:PowerMetertest
+     * 0:server 1:auto 2:test 3:PowerMetertest
      */
     public String authMode = "0";
     public int authModeId;

@@ -1,10 +1,8 @@
 package com.dongah.dispenser.pages;
 
 
-import android.annotation.SuppressLint;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -25,16 +23,19 @@ import com.dongah.dispenser.R;
 import com.dongah.dispenser.basefunction.ChargerConfiguration;
 import com.dongah.dispenser.basefunction.ChargerPointType;
 import com.dongah.dispenser.basefunction.ChargingCurrentData;
+import com.dongah.dispenser.basefunction.ClassUiProcess;
+import com.dongah.dispenser.basefunction.FragmentChange;
 import com.dongah.dispenser.basefunction.GlobalVariables;
-import com.dongah.dispenser.basefunction.TariffFileUpdater;
+import com.dongah.dispenser.basefunction.PaymentType;
 import com.dongah.dispenser.basefunction.UiSeq;
 import com.dongah.dispenser.utils.SharedModel;
 import com.dongah.dispenser.websocket.ocpp.core.ChargePointStatus;
+import com.dongah.dispenser.websocket.socket.SocketReceiveMessage;
+import com.dongah.dispenser.websocket.socket.SocketState;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.util.Objects;
 
 /**
@@ -60,16 +61,18 @@ public class InitFragment extends Fragment implements View.OnClickListener {
     Animation animBlink;
     View viewCircle;
     SharedModel sharedModel;
-    TextView textViewConnector, textViewInitMessage, txtMemberUnitInput;
+    TextView textViewConnector, textViewInitMessage;
     ImageView imageViewCar;
 
-    Handler unitPriceHandler;
-    TariffFileUpdater tariffFileUpdater;
-    String[] requestStrings = new String[1];
 
     MainActivity activity;
     ChargerConfiguration chargerConfiguration;
     ChargingCurrentData chargingCurrentData;
+    SocketReceiveMessage socketReceiveMessage;
+    ClassUiProcess classUiProcess;
+    FragmentChange fragmentChange;
+    String[] requestStrings = new String[1];
+
 
     public InitFragment() {
         // Required empty public constructor
@@ -103,6 +106,7 @@ public class InitFragment extends Fragment implements View.OnClickListener {
         }
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.O)
     @SuppressWarnings("ConstantConditions")
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
@@ -111,6 +115,9 @@ public class InitFragment extends Fragment implements View.OnClickListener {
         activity = (MainActivity) MainActivity.mContext;
         chargingCurrentData = activity.getChargingCurrentData(mChannel);
         chargerConfiguration = activity.getChargerConfiguration();
+        classUiProcess = activity.getClassUiProcess(mChannel);
+        fragmentChange = activity.getFragmentChange();
+        socketReceiveMessage = activity.getSocketReceiveMessage();
 
         animBlink = AnimationUtils.loadAnimation(getActivity(), R.anim.blink_animation);
         viewCircle = view.findViewById(R.id.viewCircle);
@@ -119,7 +126,6 @@ public class InitFragment extends Fragment implements View.OnClickListener {
         imageViewCar = view.findViewById(R.id.imageViewCar);
         textViewInitMessage = view.findViewById(R.id.textViewInitMessage);
         textViewInitMessage.startAnimation(animBlink);
-        txtMemberUnitInput = view.findViewById(R.id.txtMemberUnitInput);
 
         try {
             if (mChannel == 0) {
@@ -142,21 +148,9 @@ public class InitFragment extends Fragment implements View.OnClickListener {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         try {
-            tariffFileUpdater = new TariffFileUpdater();
             sharedModel = new ViewModelProvider(requireActivity()).get(SharedModel.class);
             requestStrings[0] = String.valueOf(0);
             sharedModel.setMutableLiveData(requestStrings);
-
-            //사용 단가 display
-            if (onUnitPrice()) {
-                try {
-                    String newPrice = tariffFileUpdater.getPrice("A").replace(".0","");
-                    txtMemberUnitInput.setText(getString(R.string.chargeUnitFormat, String.valueOf(newPrice)));
-                } catch (Exception e) {
-                    logger.error("getPrice error : {}", e.getMessage());
-                }
-            }
-            onUnitPriceDisplay();
         } catch (Exception e) {
             logger.error("onViewCreated error : {}", e.getMessage());
         }
@@ -168,113 +162,71 @@ public class InitFragment extends Fragment implements View.OnClickListener {
         try {
             if (!Objects.equals(v.getId(), R.id.viewCircle)) return;
 
-            // 초기 화면 으로 전환이 된 경우, current data clear
+            // !reservation → current data clear
             if (chargingCurrentData.getReservedStatus() != ChargePointStatus.Reserved) {
                 chargingCurrentData.onCurrentDataClear();
             }
             chargingCurrentData.setConnectorId(mChannel + 1);
             chargingCurrentData.setChargerPointType(ChargerPointType.COMBO);
 
-
-            //* page change*/
-            if (Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
-                // server mode
-                try {
-                    if (Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
-                        ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.AUTH_SELECT);
-                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel, UiSeq.AUTH_SELECT, "AUTH_SELECT", null);
-                    } else if (Objects.equals(chargerConfiguration.getAuthMode(), "4")) {
-                        double testPrice = Double.parseDouble(((MainActivity) MainActivity.mContext).getChargerConfiguration().getTestPrice());
-                        ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).getChargingCurrentData().setPowerUnitPrice(testPrice);
-                        ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.AUTH_SELECT);
-                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel, UiSeq.AUTH_SELECT, "AUTH_SELECT", null);
-                    } else {
-                        double testPrice = Double.parseDouble(((MainActivity) MainActivity.mContext).getChargerConfiguration().getTestPrice());
-                        ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).getChargingCurrentData().setPowerUnitPrice(testPrice);
-                        ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.PLUG_CHECK);
-                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+            double testPrice = Double.parseDouble(chargerConfiguration.getTestPrice());
+            switch (chargerConfiguration.getAuthMode()) {
+                case "0":
+                    if (socketReceiveMessage.getSocket().getState() != SocketState.OPEN) {
+                        Toast.makeText(this.getActivity(), "서버 연결 DISCONNECT.\n충전을 할 수 없습니다.",
+                                Toast.LENGTH_SHORT).show();
+                        return;
                     }
-
-//                    SocketState socketState =  ((MainActivity) MainActivity.mContext).getSocketReceiveMessage().getSocket().getState();
-//                    if (Objects.equals(socketState, SocketState.OPEN)) {
-//                        ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.AUTH_SELECT);
-//                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel, UiSeq.AUTH_SELECT, "AUTH_SELECT", null);
-//                    } else {
-//                        Toast.makeText(getActivity(), "서버 연결 DISCONNECT. \n충전을 할 수 없습니다.", Toast.LENGTH_SHORT).show();
-//                    }
-                } catch (Exception e) {
-                    Toast.makeText(MainActivity.mContext, "서버 socket이 생성되지 않습니다.", Toast.LENGTH_SHORT).show();
-                    logger.error(e.getMessage());
-                }
-            } else if (Objects.equals(chargerConfiguration.getAuthMode(), "4")) {
-                // local 회원 인증용
-                double testPrice = Double.parseDouble(((MainActivity) MainActivity.mContext).getChargerConfiguration().getTestPrice());
-                ((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel).setPowerUnitPrice(testPrice);
-                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.MEMBER_CARD);
-                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel, UiSeq.MEMBER_CARD, "MEMBER_CARD", null);
-            } else {
-                double testPrice = Double.parseDouble(((MainActivity) MainActivity.mContext).getChargerConfiguration().getTestPrice());
-                chargingCurrentData.setPowerUnitPrice(testPrice);
-                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.PLUG_CHECK);
-                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+                    // server mode
+                    if (Objects.equals(chargerConfiguration.getSelectPayment(), "0")) {
+                        // credit + member
+                        classUiProcess.setUiSeq(UiSeq.AUTH_SELECT);
+                        fragmentChange.onFragmentChange(mChannel, UiSeq.AUTH_SELECT, "AUTH_SELECT", null);
+                    } else if (Objects.equals(chargerConfiguration.getSelectPayment(), "1")) {
+                        // member
+                        chargingCurrentData.setPowerUnitPrice(testPrice);
+                        chargingCurrentData.setPaymentType(PaymentType.MEMBER);
+                        classUiProcess.setUiSeq(UiSeq.MEMBER_CARD);
+                        fragmentChange.onFragmentChange(mChannel, UiSeq.MEMBER_CARD, "MEMBER_CARD", null);
+                    } else if (Objects.equals(chargerConfiguration.getSelectPayment(), "2")) {
+                        // credit
+                        GlobalVariables.setCustomUnitPriceReq(false);
+                        chargingCurrentData.setPowerUnitPrice(testPrice);
+                        chargingCurrentData.setPaymentType(PaymentType.CREDIT);
+                        classUiProcess.setUiSeq(UiSeq.CREDIT_CARD);
+                        fragmentChange.onFragmentChange(mChannel, UiSeq.CREDIT_CARD, "CREDIT_CARD", null);
+                    }
+                    break;
+                case "3":
+                    // powerMeterTest, local 회원 인증용
+                    chargingCurrentData.setPowerUnitPrice(testPrice);
+                    classUiProcess.setUiSeq(UiSeq.MEMBER_CARD);
+                    fragmentChange.onFragmentChange(mChannel, UiSeq.MEMBER_CARD, "MEMBER_CARD", null);
+                    break;
+                default:
+                    // auto || test
+                    chargingCurrentData.setPowerUnitPrice(testPrice);
+                    classUiProcess.setUiSeq(UiSeq.PLUG_CHECK);
+                    fragmentChange.onFragmentChange(mChannel, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+                    break;
             }
         } catch (Exception e) {
-            Toast.makeText(this.getActivity(), "서버 연결이 안됨.....", Toast.LENGTH_SHORT).show();
-            logger.error(" init onClick error : {}", e.getMessage());        }
+            Toast.makeText(this.getActivity(), "잠시 후 다시 시도해 주세요.", Toast.LENGTH_SHORT).show();
+            logger.error("onClick error : {}", e.getMessage(), e);
+        }
     }
 
     @Override
     public void onDetach() {
         super.onDetach();
         try {
-            if (unitPriceHandler != null) {
-                unitPriceHandler.removeCallbacksAndMessages(null);
-                unitPriceHandler.removeMessages(0);
-                unitPriceHandler = null;
-            }
             animBlink.cancel();
             animBlink = null;
-            // back image
+
             requestStrings[0] = String.valueOf(mChannel);
             sharedModel.setMutableLiveData(requestStrings);
         } catch (Exception e) {
-            logger.error("init onDetach error : {}", e.getMessage());
+            logger.error("onDetach error : {}", e.getMessage(), e);
         }
     }
-    private boolean onUnitPrice() {
-        boolean result = false;
-        try {
-            File file = new File(GlobalVariables.getRootPath() + File.separator + GlobalVariables.UNIT_FILE_NAME);
-            result = file.exists() || !Objects.equals(chargerConfiguration.getAuthMode(), "0");
-        } catch (Exception e){
-            logger.error(e.getMessage());
-        }
-        return result;
-    }
-
-    private void onUnitPriceDisplay() {
-        unitPriceHandler = new Handler();
-        unitPriceHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                ((MainActivity) MainActivity.mContext).runOnUiThread(new Runnable() {
-                    @RequiresApi(api = Build.VERSION_CODES.O)
-                    @SuppressLint({"DefaultLocale", "SetTextI18n"})
-                    @Override
-                    public void run() {
-                        try {
-                            //사용 단가 갖고 오기
-                            String newPrice = tariffFileUpdater.getPrice("A").replace(".0","");
-                            txtMemberUnitInput.setText(getString(R.string.memChargingUnit) + String.format(" %s 원", newPrice));
-                            chargingCurrentData.setPowerUnitPrice(Double.parseDouble(newPrice));
-                        } catch (Exception e) {
-                            logger.error("unitPriceHandler  : {}", e.getMessage());
-                        }
-                    }
-                });
-                unitPriceHandler.postDelayed(this, 60000);
-            }
-        }, 8000);
-    }
-
 }
