@@ -62,12 +62,14 @@ public class InitFragment extends Fragment implements View.OnClickListener {
     SharedModel sharedModel;
     TextView textViewConnector, textViewInitMessage, txtMemberUnitInput;
     ImageView imageViewCar;
-    ChargerConfiguration chargerConfiguration;
-    ChargingCurrentData chargingCurrentData;
-    String[] requestStrings = new String[1];
 
     Handler unitPriceHandler;
     TariffFileUpdater tariffFileUpdater;
+    String[] requestStrings = new String[1];
+
+    MainActivity activity;
+    ChargerConfiguration chargerConfiguration;
+    ChargingCurrentData chargingCurrentData;
 
     public InitFragment() {
         // Required empty public constructor
@@ -106,6 +108,10 @@ public class InitFragment extends Fragment implements View.OnClickListener {
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_init, container, false);
+        activity = (MainActivity) MainActivity.mContext;
+        chargingCurrentData = activity.getChargingCurrentData(mChannel);
+        chargerConfiguration = activity.getChargerConfiguration();
+
         animBlink = AnimationUtils.loadAnimation(getActivity(), R.anim.blink_animation);
         viewCircle = view.findViewById(R.id.viewCircle);
         viewCircle.setOnClickListener(this);
@@ -124,7 +130,7 @@ public class InitFragment extends Fragment implements View.OnClickListener {
                 textViewConnector.setText(R.string.rightConnector);
             }
         } catch (Exception e) {
-            logger.error("InitFragment onCreateView error : {}", e.getMessage());
+            logger.error("onCreateView error : {}", e.getMessage());
         }
 
         return view;
@@ -136,24 +142,23 @@ public class InitFragment extends Fragment implements View.OnClickListener {
     public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
         super.onViewCreated(view, savedInstanceState);
         try {
-            chargingCurrentData = ((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel);
             tariffFileUpdater = new TariffFileUpdater();
+            sharedModel = new ViewModelProvider(requireActivity()).get(SharedModel.class);
+            requestStrings[0] = String.valueOf(0);
+            sharedModel.setMutableLiveData(requestStrings);
+
             //사용 단가 display
             if (onUnitPrice()) {
                 try {
                     String newPrice = tariffFileUpdater.getPrice("A").replace(".0","");
                     txtMemberUnitInput.setText(getString(R.string.chargeUnitFormat, String.valueOf(newPrice)));
                 } catch (Exception e) {
-                    logger.error(" getPrice error : {}", e.getMessage());
+                    logger.error("getPrice error : {}", e.getMessage());
                 }
             }
             onUnitPriceDisplay();
-            // home image
-            sharedModel = new ViewModelProvider(requireActivity()).get(SharedModel.class);
-            requestStrings[0] = String.valueOf(0);
-            sharedModel.setMutableLiveData(requestStrings);
         } catch (Exception e) {
-            logger.error("InitFragment onViewCreated : {}", e.getMessage());
+            logger.error("onViewCreated error : {}", e.getMessage());
         }
     }
 
@@ -164,20 +169,16 @@ public class InitFragment extends Fragment implements View.OnClickListener {
             if (!Objects.equals(v.getId(), R.id.viewCircle)) return;
 
             // 초기 화면 으로 전환이 된 경우, current data clear
-            chargerConfiguration = ((MainActivity) MainActivity.mContext).getChargerConfiguration();
-            chargingCurrentData = ((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel);
             if (chargingCurrentData.getReservedStatus() != ChargePointStatus.Reserved) {
                 chargingCurrentData.onCurrentDataClear();
             }
             chargingCurrentData.setConnectorId(mChannel + 1);
+            chargingCurrentData.setChargerPointType(ChargerPointType.COMBO);
 
-            int id = v.getId();
 
             //* page change*/
-            ((MainActivity) getActivity()).getChargingCurrentData(mChannel).setChargerPointType(ChargerPointType.COMBO);
-            ((MainActivity) getActivity()).getChargingCurrentData(mChannel).setConnectorId(mChannel + 1);
-
             if (Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
+                // server mode
                 try {
                     if (Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
                         ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.AUTH_SELECT);

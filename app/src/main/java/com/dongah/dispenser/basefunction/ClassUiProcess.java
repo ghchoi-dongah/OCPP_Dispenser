@@ -116,20 +116,22 @@ public class ClassUiProcess implements RfCardReaderListener {
         try {
             setUiSeq(UiSeq.INIT);
             zonedDateTimeConvert = new ZonedDateTimeConvert();
-            //rf card
+            // rf card
             rfCardReaderReceive = ((MainActivity) MainActivity.mContext).getRfCardReaderReceive();
             rfCardReaderReceive.setRfCardReaderListener(this);
             // configuration
             chargerConfiguration = ((MainActivity) MainActivity.mContext).getChargerConfiguration();
-            //fragment change
+            // fragment change
             fragmentChange = ((MainActivity) MainActivity.mContext).getFragmentChange();
-            //control board
+            // control board
             controlBoard = ((MainActivity) MainActivity.mContext).getControlBoard();
             // alarm check
             notifyFaultCheck = new NotifyFaultCheck(ch);
-            //process handler
+            // process handler
             processHandler = ((MainActivity) MainActivity.mContext).getProcessHandler();
-            //loop
+            // socketReceive
+            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+            // loop
             eventTimer = new Timer();
             eventTimer.schedule(new TimerTask() {
                 @RequiresApi(api = Build.VERSION_CODES.O)
@@ -295,11 +297,16 @@ public class ClassUiProcess implements RfCardReaderListener {
     }
 
 
-    private void onFinish() {
+    private void onFinish(RxData rxData) {
         //충전 완료
         if (chargingCurrentData.isReBoot()) {
             setUiSeq(UiSeq.INIT);
         }
+
+        if (!rxData.isCsPilot()) {
+            onHome();
+        }
+
         // 케이블 분리 감지 시 Available 전송 후 INIT 전환 (cpVoltage >= 11.0V = 미연결)
 
 //        short tmp = controlBoard.getRxData(getCh()).getCpVoltage();
@@ -604,17 +611,23 @@ public class ClassUiProcess implements RfCardReaderListener {
         setoSeq(UiSeq.INIT);
         setPowerMeterCheck(0);
         plugCheckCounter = 0;
+        targetSoc = 0;
         onMeterValueStop();
         onMeterValuesAlignedDataStop();
+        chargingCurrentData.setUserStop(false);
         if (chargingCurrentData.isReBoot() && onRebootCheck()) {
+            // rebooting
             setUiSeq(UiSeq.REBOOTING);
         }
         if (chargingCurrentData.getChargePointStatus() == ChargePointStatus.Reserved) {
+            // reservation
             String currentTime = zonedDateTimeConvert.doGetUtcDatetimeAsStringSimple();
+            // 현재 UTC 시간과 예약 만료 시간 비교 → 현재 시간이 예약 만료 시간을 지났는지 확인
+            // str1.compareTo(str2) > 0 : str1이 str2보다 큼 → 예약 만료 처리
             if (currentTime.compareTo(chargingCurrentData.getResExpiryDate()) > 0) {
                 // available
                 chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
-                socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+//                socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
                 processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
                         GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
                         chargingCurrentData.getResConnectorId(),
@@ -631,8 +644,6 @@ public class ClassUiProcess implements RfCardReaderListener {
                 chargingCurrentData.setReservedStatus(ChargePointStatus.Available);
             }
         }
-        chargingCurrentData.setUserStop(false);
-        targetSoc = 0;
         // OCPP TC_003 cable-first flow: cpVoltage 상승 에지(>=110→<110)일 때만 MEMBER_CARD로 전환
         // 충전 종료 후 케이블이 연결된 채 INIT 재진입 시 중복 전환 방지
         // RemoteStart 진행 중이면 MEMBER_CARD 전환하지 않음 — 케이블 연결 시 PLUG_CHECK로 재진입
@@ -641,7 +652,7 @@ public class ClassUiProcess implements RfCardReaderListener {
                 !chargingCurrentData.isRemoteStart() &&
                 GlobalVariables.isConnectRetry() &&
                 rxData.getCpVoltage() < 110 && !prevCsPilot) {
-            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+//            socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
             if (socketReceiveMessage != null &&
                     socketReceiveMessage.getSocket() != null) {
                 if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing)) {
@@ -652,7 +663,12 @@ public class ClassUiProcess implements RfCardReaderListener {
                             socketReceiveMessage.getSocket().getState() == SocketState.OPEN) {
                         processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
                                 GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                ch + 1, 0, null, null, null, false));
+                                ch + 1,
+                                0,
+                                null,
+                                null,
+                                null,
+                                false));
                     }
                 }
                 chargingCurrentData.setConnectorId(ch + 1);
@@ -900,7 +916,7 @@ public class ClassUiProcess implements RfCardReaderListener {
             onMeterValueStop();
             onMeterValuesAlignedDataStop();
             Thread.sleep(5000);
-            onFinish();
+            onFinish(rxData);
             //reserved check
             if (Objects.equals(chargingCurrentData.getIdTag(), chargingCurrentData.getResIdTag()) ||
                     Objects.equals(chargingCurrentData.getParentIdTag(), chargingCurrentData.getResParentIdTag())) {

@@ -690,13 +690,13 @@
         android:text="@string/txtStopConfirm"
         android:checked="false"
         app:layout_constraintTop_toBottomOf="@id/editTargetChargingTime"
-        app:layout_constraintStart_toStartOf="@id/editTargetChargingTime" />
+        app:layout_constraintEnd_toEndOf="@id/txtTargetChargingTime" />
 
     <TextView
         android:id="@+id/txtSecurityProfile"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginStart="40dp"
+        android:layout_marginStart="10dp"
         android:text="@string/txtSecurityProfile"
         android:textSize="18sp"
         android:textColor="@color/black"
@@ -706,9 +706,12 @@
 
     <Spinner
         android:id="@+id/spinnerSecurityProfile"
-        android:layout_width="230dp"
+        android:layout_width="200dp"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
+        android:spinnerMode="dropdown"
+        android:theme="@style/SpinnerTheme"
+        android:background="@drawable/spinner_background"
         app:layout_constraintTop_toTopOf="@id/chkStopConfirm"
         app:layout_constraintBottom_toBottomOf="@id/chkStopConfirm"
         app:layout_constraintLeft_toRightOf="@id/txtSecurityProfile"

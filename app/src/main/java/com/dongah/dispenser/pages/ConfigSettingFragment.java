@@ -393,7 +393,7 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
             chargerConfiguration.onSaveConfiguration();
             chargerConfiguration.onLoadConfiguration();
         } catch (Exception e) {
-            Log.e("ConfigSettingFragment", e.toString());
+            logger.error("onSaveConfiguration error : {}", e.getMessage(), e);
         }
     }
 
