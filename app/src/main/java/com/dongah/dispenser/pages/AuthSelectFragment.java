@@ -25,6 +25,8 @@ import com.dongah.dispenser.MainActivity;
 import com.dongah.dispenser.R;
 import com.dongah.dispenser.basefunction.ChargerConfiguration;
 import com.dongah.dispenser.basefunction.ChargingCurrentData;
+import com.dongah.dispenser.basefunction.ClassUiProcess;
+import com.dongah.dispenser.basefunction.FragmentChange;
 import com.dongah.dispenser.basefunction.GlobalVariables;
 import com.dongah.dispenser.basefunction.PaymentType;
 import com.dongah.dispenser.basefunction.TariffFileUpdater;
@@ -70,16 +72,20 @@ public class AuthSelectFragment extends Fragment implements View.OnClickListener
     private String mParam2;
     private int mChannel;
 
-    View viewMember, viewNoMember, viewQr;
-    TextView textViewMemberUnitInput, textViewNoMemberUnitInput;
     ImageView imageViewQr;
+    View viewMember, viewNoMember, viewQr;
+//    TextView textViewMemberUnitInput, textViewNoMemberUnitInput;
+
+    SharedModel sharedModel;
+    Handler uiCheckHandler;
+
+    MainActivity activity;
     ChargerConfiguration chargerConfiguration;
     ChargingCurrentData chargingCurrentData;
-    Handler uiCheckHandler;
+    ClassUiProcess classUiProcess;
+    FragmentChange fragmentChange;
     SocketReceiveMessage socketReceiveMessage;
-    SharedModel sharedModel;
 
-    double aUnitPrice, bUnitPrice;
 
     public AuthSelectFragment() {
         // Required empty public constructor
@@ -120,12 +126,15 @@ public class AuthSelectFragment extends Fragment implements View.OnClickListener
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_auth_select, container, false);
         sharedModel = new ViewModelProvider(requireActivity()).get(SharedModel.class);
-        chargerConfiguration = ((MainActivity) MainActivity.mContext).getChargerConfiguration();
-        chargingCurrentData = ((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel);
-        socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
+        activity = (MainActivity) MainActivity.mContext;
+        chargerConfiguration = activity.getChargerConfiguration();
+        chargingCurrentData = activity.getChargingCurrentData(mChannel);
+        socketReceiveMessage = activity.getSocketReceiveMessage();
+        classUiProcess = activity.getClassUiProcess(mChannel);
+        fragmentChange = activity.getFragmentChange();
 
-        textViewMemberUnitInput = view.findViewById(R.id.textViewMemberUnitInput);
-        textViewNoMemberUnitInput = view.findViewById(R.id.textViewNoMemberUnitInput);
+//        textViewMemberUnitInput = view.findViewById(R.id.textViewMemberUnitInput);
+//        textViewNoMemberUnitInput = view.findViewById(R.id.textViewNoMemberUnitInput);
 
         viewMember = view.findViewById(R.id.viewMember);
         viewMember.setOnClickListener(this);
@@ -135,26 +144,6 @@ public class AuthSelectFragment extends Fragment implements View.OnClickListener
         viewQr.setOnClickListener(this);
         imageViewQr = view.findViewById(R.id.imageViewQr);
 
-        //사용 단가 갖고 오기
-        Set<String> userTypes = new HashSet<>(Arrays.asList("A", "B"));
-        Map<String, Integer> unitPrices = onFindUnitPrices(userTypes);
-        textViewMemberUnitInput.setText(getString(R.string.chargeUnitFormat, String.valueOf(unitPrices.getOrDefault("A", 0))));
-        textViewNoMemberUnitInput.setText(getString(R.string.chargeUnitFormat, String.valueOf(unitPrices.getOrDefault("B", 0))));
-
-        aUnitPrice = unitPrices.getOrDefault("A", 0);
-        bUnitPrice = unitPrices.getOrDefault("B", 0);
-
-        try {
-            TariffFileUpdater tariffFileUpdater = new TariffFileUpdater();
-            String memberPrice = tariffFileUpdater.getPrice("A").replace(".0","");
-            String nonPrice = tariffFileUpdater.getPrice("B").replace(".0","");
-            textViewMemberUnitInput.setText(getString(R.string.chargeUnitFormat, String.valueOf(memberPrice)));
-            textViewNoMemberUnitInput.setText(getString(R.string.chargeUnitFormat, String.valueOf(nonPrice)));
-            aUnitPrice = Double.parseDouble(memberPrice);
-            bUnitPrice = Double.parseDouble(nonPrice);
-        } catch (Exception e) {
-            logger.error(" price error : {}", e.getMessage());
-        }
         return view;
     }
 
@@ -167,16 +156,17 @@ public class AuthSelectFragment extends Fragment implements View.OnClickListener
             mediaPlayer.setOnCompletionListener(MediaPlayer::release);
             mediaPlayer.start();
 
+            // 60초 후 HOME
             uiCheckHandler = new Handler();
             uiCheckHandler.postDelayed(new Runnable() {
                 @Override
                 public void run() {
-                    ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).onHome();
+                    classUiProcess.onHome();
                 }
             }, 60000);
 
         }catch (Exception e) {
-            logger.error(" AuthSelectFragment error : {}", e.getMessage());
+            logger.error("onViewCreated error : {}", e.getMessage(), e);
         }
     }
 
@@ -187,49 +177,22 @@ public class AuthSelectFragment extends Fragment implements View.OnClickListener
             int getId = v.getId();
             if (Objects.equals(getId, R.id.viewMember)) {
                 chargingCurrentData.setPaymentType(PaymentType.MEMBER);
-                chargingCurrentData.setPowerUnitPrice(aUnitPrice);
-                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.MEMBER_CARD);
-                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.MEMBER_CARD, "MEMBER_CARD", null);
+                classUiProcess.setUiSeq(UiSeq.MEMBER_CARD);
+                fragmentChange.onFragmentChange(mChannel,UiSeq.MEMBER_CARD, "MEMBER_CARD", null);
             } else if (Objects.equals(getId, R.id.viewNoMember)) {
                 GlobalVariables.setCustomUnitPriceReq(false);
-                GlobalVariables.setHumaxUserType("B");
                 chargingCurrentData.setPaymentType(PaymentType.CREDIT);
-                chargingCurrentData.setPowerUnitPrice(bUnitPrice);
-                ((MainActivity) MainActivity.mContext).getProcessHandler()
-                        .sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-                                GlobalVariables.MESSAGE_CUSTOM_UNIT_PRICE,
-                                chargingCurrentData.getConnectorId(),
-                                0,
-                                "",
-                                null,
-                                GlobalVariables.getHumaxUserType(),
-                                false));
-                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.CREDIT_CARD);
-                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CREDIT_CARD, "CREDIT_CARD", null);
+                classUiProcess.setUiSeq(UiSeq.CREDIT_CARD);
+                fragmentChange.onFragmentChange(mChannel,UiSeq.CREDIT_CARD, "CREDIT_CARD", null);
             } else if (Objects.equals(getId, R.id.viewQr)) {
-                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.QR_CODE);
-                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.QR_CODE, "QR_CODE", null);
+                classUiProcess.setUiSeq(UiSeq.QR_CODE);
+                fragmentChange.onFragmentChange(mChannel,UiSeq.QR_CODE, "QR_CODE", null);
             }
         } catch (Exception e) {
-            logger.error("AuthSelectFragment onClick error : {}", e.getMessage());
+            logger.error("onClick error : {}", e.getMessage(), e);
         }
     }
 
-    public Bitmap toGrayscale(Bitmap bmpOriginal) {
-        int width, height;
-        height = bmpOriginal.getHeight();
-        width = bmpOriginal.getWidth();
-
-        Bitmap bmpGrayscale = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
-        Canvas c = new Canvas(bmpGrayscale);
-        Paint paint = new Paint();
-        ColorMatrix cm = new ColorMatrix();
-        cm.setSaturation(0);
-        ColorMatrixColorFilter f = new ColorMatrixColorFilter(cm);
-        paint.setColorFilter(f);
-        c.drawBitmap(bmpOriginal, 0, 0, paint);
-        return bmpGrayscale;
-    }
 
     @Override
     public void onDetach() {
@@ -241,54 +204,7 @@ public class AuthSelectFragment extends Fragment implements View.OnClickListener
                 uiCheckHandler = null;
             }
         } catch (Exception e) {
-            logger.error("AuthSelectFragment onDetach error : {}", e.getMessage());
+            logger.error("onDetach error : {}", e.getMessage(), e);
         }
     }
-
-    @RequiresApi(api = Build.VERSION_CODES.O)
-    public Map<String, Integer> onFindUnitPrices(Set<String> userTypes) {
-        Map<String, Integer> resultMap = new HashMap<>();
-
-        try {
-            File file = new File(GlobalVariables.getRootPath() + File.separator + GlobalVariables.UNIT_FILE_NAME);
-            if (file.exists()) {
-                FileReader fileReader = new FileReader(file);
-                BufferedReader bufferedReader = new BufferedReader(fileReader);
-                String line;
-
-                ZonedDateTimeConvert zonedDateTimeConvert = new ZonedDateTimeConvert();
-                ZonedDateTime now = zonedDateTimeConvert.doGetCurrentTime();
-
-                while ((line = bufferedReader.readLine()) != null) {
-                    JSONObject unitObject = new JSONObject(line);
-                    String userType = unitObject.getString("userType");
-
-                    if (userTypes.contains(userType)) {
-                        JSONArray jsonArrayUnit = unitObject.getJSONArray("tariff");
-
-                        for (int k = 0; k < jsonArrayUnit.length(); k++) {
-                            JSONObject obj = jsonArrayUnit.getJSONObject(k);
-                            ZonedDateTime startAt = ZonedDateTime.parse(obj.getString("startAt"), DateTimeFormatter.ISO_DATE_TIME);
-                            ZonedDateTime endAt = ZonedDateTime.parse(obj.getString("endAt"), DateTimeFormatter.ISO_DATE_TIME);
-
-                            if ((now.isEqual(startAt) || now.isAfter(startAt)) && (now.isBefore(endAt) || now.isEqual(endAt))) {
-                                resultMap.put(userType, obj.getInt("price"));
-                                break; // 그 userType에 대해 단가 정보를 찾으면 다음 라인으로 넘어감
-                            }
-                        }
-
-                        // 모든 userType을 찾으면 종료
-                        if (resultMap.keySet().containsAll(userTypes)) {
-                            break;
-                        }
-                    }
-                }
-            }
-        } catch (Exception e) {
-            logger.error("onFindUnitPrices error : {}", e.getMessage());
-        }
-
-        return resultMap;
-    }
-
 }

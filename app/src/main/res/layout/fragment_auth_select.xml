@@ -71,16 +71,16 @@
         app:layout_constraintStart_toStartOf="@id/textViewMember"
         app:layout_constraintTop_toBottomOf="@id/textViewMember" />
 
-    <TextView
-        android:id="@+id/textViewMemberUnitInput"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:text="충전단가: 310원"
-        android:textSize="20sp"
-        app:layout_constraintStart_toEndOf="@id/textViewMember"
-        app:layout_constraintTop_toTopOf="@id/textViewMember"
-        app:layout_constraintBottom_toBottomOf="@id/textViewMember" />
+<!--    <TextView-->
+<!--        android:id="@+id/textViewMemberUnitInput"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_marginStart="10dp"-->
+<!--        android:text="충전단가: 310원"-->
+<!--        android:textSize="20sp"-->
+<!--        app:layout_constraintStart_toEndOf="@id/textViewMember"-->
+<!--        app:layout_constraintTop_toTopOf="@id/textViewMember"-->
+<!--        app:layout_constraintBottom_toBottomOf="@id/textViewMember" />-->
 
     <!-- nomember info -->
     <View
@@ -129,16 +129,16 @@
         app:layout_constraintStart_toStartOf="@id/textViewNoMember"
         app:layout_constraintTop_toBottomOf="@id/textViewNoMember" />
 
-    <TextView
-        android:id="@+id/textViewNoMemberUnitInput"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginStart="10dp"
-        android:text="충전단가: 480원"
-        android:textSize="20sp"
-        app:layout_constraintStart_toEndOf="@id/textViewNoMember"
-        app:layout_constraintTop_toTopOf="@id/textViewNoMember"
-        app:layout_constraintBottom_toBottomOf="@id/textViewNoMember" />
+<!--    <TextView-->
+<!--        android:id="@+id/textViewNoMemberUnitInput"-->
+<!--        android:layout_width="wrap_content"-->
+<!--        android:layout_height="wrap_content"-->
+<!--        android:layout_marginStart="10dp"-->
+<!--        android:text="충전단가: 480원"-->
+<!--        android:textSize="20sp"-->
+<!--        app:layout_constraintStart_toEndOf="@id/textViewNoMember"-->
+<!--        app:layout_constraintTop_toTopOf="@id/textViewNoMember"-->
+<!--        app:layout_constraintBottom_toBottomOf="@id/textViewNoMember" />-->
 
     <!-- qr -->
     <View
