@@ -98,6 +98,7 @@ public class MemberCardFragment extends Fragment {
         SharedModel sharedModel = new ViewModelProvider(requireActivity()).get(SharedModel.class);
         requestStrings[0] = String.valueOf(mChannel);
         sharedModel.setMutableLiveData(requestStrings);
+
         //rfCard ready
         ((MainActivity) MainActivity.mContext).getRfCardReaderReceive().rfCardReadRequest(mChannel);
 
@@ -130,6 +131,7 @@ public class MemberCardFragment extends Fragment {
                             cnt++;
                             if (cnt >= MAX_TIME) {
                                 ((MainActivity) getActivity()).getClassUiProcess(mChannel).onHome();
+                                countHandler.removeCallbacks(countRunnable);
                             } else {
                                 textViewTagTimer.setText((MAX_TIME - cnt) + "초");
                                 countHandler.postDelayed(countRunnable, 1000);
@@ -141,8 +143,7 @@ public class MemberCardFragment extends Fragment {
             });
 
         } catch (Exception e) {
-            Log.e("MemberCardFragment", "onViewCreated error", e);
-            logger.error("MemberCardFragment onViewCreated error : {} ", e.getMessage());
+            logger.error("onViewCreated error : {} ", e.getMessage());
         }
     }
 
@@ -162,14 +163,14 @@ public class MemberCardFragment extends Fragment {
             }
 
             if (countHandler != null) {
+                countHandler.removeCallbacks(countRunnable);
                 countHandler.removeCallbacksAndMessages(null);
                 countHandler = null;
             }
             countRunnable = null;
 
         } catch (Exception e) {
-            Log.e("MemberCardFragment", "onDestroyView error", e);
-            logger.error("MemberCardFragment onDestroyView error : {}", e.getMessage());
+            logger.error("onDestroyView error : {}", e.getMessage());
         }
         super.onDestroyView();
     }
@@ -177,14 +178,5 @@ public class MemberCardFragment extends Fragment {
     @Override
     public void onDetach() {
         super.onDetach();
-        try {
-            if (countHandler != null) {
-                countHandler.removeCallbacksAndMessages(null);
-                countHandler = null;
-            }
-        } catch (Exception e) {
-            Log.e("MemberCardFragment", "onDetach error", e);
-            logger.error("MemberCardFragment onDetach error : {} ", e.getMessage());
-        }
     }
 }

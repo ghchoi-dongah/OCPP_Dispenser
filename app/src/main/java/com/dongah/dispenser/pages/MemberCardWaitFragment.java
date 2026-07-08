@@ -22,6 +22,7 @@ import com.dongah.dispenser.R;
 import com.dongah.dispenser.basefunction.ChargerConfiguration;
 import com.dongah.dispenser.basefunction.ChargingCurrentData;
 import com.dongah.dispenser.basefunction.ClassUiProcess;
+import com.dongah.dispenser.basefunction.FragmentChange;
 import com.dongah.dispenser.basefunction.GlobalVariables;
 import com.dongah.dispenser.basefunction.UiSeq;
 import com.dongah.dispenser.controlboard.RxData;
@@ -62,6 +63,8 @@ public class MemberCardWaitFragment extends Fragment  {
     ImageView imageViewLoading;
     AnimationDrawable animationDrawable;
 
+    MainActivity activity;
+    FragmentChange fragmentChange;
     ClassUiProcess classUiProcess;
     ChargingCurrentData chargingCurrentData;
     ChargerConfiguration chargerConfiguration;
@@ -105,6 +108,12 @@ public class MemberCardWaitFragment extends Fragment  {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_member_card_wait, container, false);
+        activity = (MainActivity) MainActivity.mContext;
+        fragmentChange = activity.getFragmentChange();
+        classUiProcess = activity.getClassUiProcess(mChannel);
+        chargerConfiguration = activity.getChargerConfiguration();
+        chargingCurrentData = activity.getChargingCurrentData(mChannel);
+
         txtMemberWaiting = view.findViewById(R.id.txtMemberWaiting);
         imageViewLoading = view.findViewById(R.id.imageViewLoading);
         imageViewLoading.setBackgroundResource(R.drawable.ani_loading);
@@ -119,15 +128,11 @@ public class MemberCardWaitFragment extends Fragment  {
         super.onViewCreated(view, savedInstanceState);
         try {
             animationDrawable.start();
-            chargerConfiguration = ((MainActivity) MainActivity.mContext).getChargerConfiguration();
-            classUiProcess = ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel);
-            chargingCurrentData = ((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel);
-
             MediaPlayer mediaPlayer = MediaPlayer.create(MainActivity.mContext, R.raw.membercardwait);
             mediaPlayer.setOnCompletionListener(MediaPlayer::release);
             mediaPlayer.start();
 
-            ((MainActivity) MainActivity.mContext).runOnUiThread(new Runnable() {
+            activity.runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
                     countHandler = new Handler();
@@ -137,9 +142,9 @@ public class MemberCardWaitFragment extends Fragment  {
                             try {
                                 cnt++;
                                 if (Objects.equals(cnt, 20)) {
-                                    ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).onHome();
+                                    countHandler.removeCallbacks(countRunnable);
+                                    classUiProcess.onHome();
                                 } else {
-//                                txtCount.setText(String.valueOf(cnt));
                                     countHandler.postDelayed(countRunnable, 1000);
                                 }
                                 //authorize result check
@@ -147,7 +152,7 @@ public class MemberCardWaitFragment extends Fragment  {
                                     animationDrawable.stop();
                                 }
                             } catch (Exception e){
-                                logger.error(e.getMessage());
+                                logger.error("authorize check error : {}", e.getMessage(), e);
                             }
                         }
                     };
@@ -159,34 +164,38 @@ public class MemberCardWaitFragment extends Fragment  {
             //나중에 부활 예정
             String[] idTagInfo;
             UiSeq uiSeq = classUiProcess.getUiSeq();
-            SocketReceiveMessage socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
-            ProcessHandler processHandler = ((MainActivity) MainActivity.mContext).getProcessHandler();
+            SocketReceiveMessage socketReceiveMessage = activity.getSocketReceiveMessage();
+            ProcessHandler processHandler = activity.getProcessHandler();
 
-            //local mode Authorize
-            if (Objects.equals(chargerConfiguration.getAuthMode(), "4")) {
+            // AuthMode 3: powerMeter → local mode Authorize
+            if (Objects.equals(chargerConfiguration.getAuthMode(), "3")) {
                 if (Objects.equals(chargingCurrentData.getIdTag(), "1019160058571654")) {
                     classUiProcess.setUiSeq(UiSeq.PLUG_CHECK);
-                    ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+                    fragmentChange.onFragmentChange(mChannel,UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
                 }
                 return;
             }
 
-            //reservation check
+            // reservation check
             if (chargingCurrentData.getReservedStatus() == ChargePointStatus.Reserved) {
                 if (!Objects.equals(chargingCurrentData.getResIdTag(), chargingCurrentData.getIdTag())) {
-//                    Toast.makeText(getActivity(), "예약한 IdTag가 틀립니다. ", Toast.LENGTH_SHORT).show();
-//                    classUiProcess.onHome();
+                    // resIdTag ≠ idTag
                     if (Objects.equals(uiSeq, UiSeq.CHARGING)) {
+                        // 현재 UI가 Charging 상태
+                        // 충전 중 다른 카드 태그 → resIdTag로 재인증(Authorize 요청)
+                        // 충전 중인데 다른 카드를 태드함 → 태그한 그 카드로 인증 시도
                         processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
                                 GlobalVariables.MESSAGE_HANDLER_AUTHORIZE,
                                 chargingCurrentData.getConnectorId(),
                                 0,
-                                Objects.equals(uiSeq, UiSeq.CHARGING) ? chargingCurrentData.getResIdTag() : chargingCurrentData.getIdTag(),
+                                chargingCurrentData.getResIdTag(),  // 이미 충전 중 이므로 삼항 연산자 불필요
                                 null,
                                 null,
                                 false));
                     } else {
                         if (!Objects.equals(chargingCurrentData.getResParentIdTag(), "")) {
+                            // Charging 아닌 상태 && resParentIdTag가 있음 → idTag로 Authorize 요청(그룹 카드 하위 카드 → 원래 카드로 인증)
+                            // 충전 시작 전인데 카드 ID가 다름 + 상위 그룹 카드가 있음 → 원래 카드로 다시 인증 시도
                             processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
                                     GlobalVariables.MESSAGE_HANDLER_AUTHORIZE,
                                     chargingCurrentData.getConnectorId(),
@@ -196,33 +205,39 @@ public class MemberCardWaitFragment extends Fragment  {
                                     null,
                                     false));
                         } else {
+                            // Charging 아닌 상태 && resParentIdTag가 없음 → 인증 불가로 HOME 이동
+                            // 충전 시작 전인데 카드 ID가 다름 + 상위 카드도 없음 → 인증 불가, HOME 이동
                             classUiProcess.onHome();
                         }
                     }
 
                     return;
                 } else {
-                    //Authorization
+                    // Authorization, resIdTag == idTag
                     if (Objects.equals(uiSeq, UiSeq.CHARGING)) {
+                        // 충전 중 상태
                         idTagInfo = socketReceiveMessage.getLocalAuthorizationListStrings(uiSeq == UiSeq.CHARGING ? chargingCurrentData.getIdTagStop() : chargingCurrentData.getIdTag());
                         if (Objects.equals(chargingCurrentData.getParentIdTag(), idTagInfo[1]) ||
                                 Objects.equals(chargingCurrentData.getIdTag(), chargingCurrentData.getIdTagStop())) {
-                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
+                            // 같은 카드 or 상위 그룹 카드로 태그 → 충전 종료 화면
+                            fragmentChange.onFragmentChange(mChannel,UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
                         } else {
+                            // 다른 카드로 태그 → 충전 화면 유지
                             classUiProcess.setUiSeq(UiSeq.CHARGING);
-                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
+                            fragmentChange.onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
                         }
                     } else {
-                        chargingCurrentData.setIdTag(chargingCurrentData.getResIdTag());
+                        // 충전 시작 전
+                        chargingCurrentData.setIdTag(chargingCurrentData.getResIdTag()); // idTag를 resIdTag로 업데이트
                         processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
                                 GlobalVariables.MESSAGE_HANDLER_AUTHORIZE,
                                 chargingCurrentData.getConnectorId(),
                                 0,
-                                Objects.equals(uiSeq, UiSeq.CHARGING) ? chargingCurrentData.getIdTagStop() : chargingCurrentData.getIdTag(),
+                                chargingCurrentData.getIdTag(),
                                 null,
                                 null,
                                 false));
-                        //preparing
+                        // server mode && !Preparing → Preparing 상태로 전환 후 서버에 상태 전송
                         if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing) &&
                                 Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
                             chargingCurrentData.setChargePointStatus(ChargePointStatus.Preparing);
@@ -239,23 +254,30 @@ public class MemberCardWaitFragment extends Fragment  {
                     return;
                 }
             }
+
             // isLocalPreAuthorize == true : local authorization list 에서 사용자 인증
             if (GlobalVariables.isLocalPreAuthorize()) {
                 // local authorization enabled --> local 인증
-                //LocalAuthListEnabled
-                idTagInfo = socketReceiveMessage.getLocalAuthorizationListStrings(uiSeq == UiSeq.CHARGING ? chargingCurrentData.getIdTagStop() : chargingCurrentData.getIdTag());
+                // LocalAuthListEnabled
+                idTagInfo = socketReceiveMessage.getLocalAuthorizationListStrings(uiSeq == UiSeq.CHARGING ?
+                        chargingCurrentData.getIdTagStop() : chargingCurrentData.getIdTag());
                 if (Objects.equals(UiSeq.CHARGING, uiSeq)) {
+                    // 충전 중 상태
                     if (Objects.equals(chargingCurrentData.getParentIdTag(), idTagInfo[1]) ||
                             Objects.equals(chargingCurrentData.getIdTag(), chargingCurrentData.getIdTagStop())) {
-                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
+                        // 같은 카드 or 그룹 카드 → 충전 종료 화면
+                        fragmentChange.onFragmentChange(mChannel,UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
                     } else {
-                        classUiProcess.setUiSeq(UiSeq.CHARGING);
-                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
+                        // 다른 카드 → 충전 화면 유지
+//                        classUiProcess.setUiSeq(UiSeq.CHARGING);
+                        fragmentChange.onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
                     }
                 } else {
+                    // 충전 전
                     if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing) &&
-                            Objects.equals(chargerConfiguration.getAuthMode(), "0") && !Objects.equals(idTagInfo[0], chargingCurrentData.getIdTag())) {
-
+                            Objects.equals(chargerConfiguration.getAuthMode(), "0") &&
+                            !Objects.equals(idTagInfo[0], chargingCurrentData.getIdTag())) {
+                        // 로컬 목록에 없고 server mode → 서버에 Authorize 전송
                         // 추가 2026.02.09 - 소켓 연결 상태일 때만 Authorize 전송 (오프라인 시 dump에 쌓이면 StartTransaction보다 먼저 전송되어 TC_037_2_CS 실패)
                         SocketState localAuthState = socketReceiveMessage.getSocket().getState();
                         if (Objects.equals(localAuthState.getValue(), 7)) {
@@ -268,25 +290,12 @@ public class MemberCardWaitFragment extends Fragment  {
                                     null,
                                     false));
                         }
-
-                        // StatusNotification(Preparing)은 Authorize.conf(Accepted) 수신 후 전송
-                        //AuthorizeRemoteTxRequests
-//                    if (!GlobalVariables.isLocalAuthListEnabled()) {
-//                        processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
-//                                GlobalVariables.MESSAGE_HANDLER_AUTHORIZE,
-//                                chargingCurrentData.getConnectorId(),
-//                                0,
-//                                Objects.equals(uiSeq, UiSeq.CHARGING) ? chargingCurrentData.getIdTagStop() : chargingCurrentData.getIdTag(),
-//                                null,
-//                                null,
-//                                false));
-////                        if (!GlobalVariables.isAuthorizeRemoteTxRequests()) {
-////                        }
                     } else {
+                        // 로컬 목록에 있음
                         if (Objects.equals(idTagInfo[0], chargingCurrentData.getIdTag())) {
                             chargingCurrentData.setAuthorizeResult(true);
                             chargingCurrentData.setParentIdTag(idTagInfo[1]);
-                            //preparing
+                            // 인증 성공 → Preparing → PLUG_CHECK 화면
                             if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing) &&
                                     Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
                                 chargingCurrentData.setChargePointStatus(ChargePointStatus.Preparing);
@@ -299,13 +308,16 @@ public class MemberCardWaitFragment extends Fragment  {
                                         null,
                                         false));
                             }
-                            ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.PLUG_CHECK);
-                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+                            classUiProcess.setUiSeq(UiSeq.PLUG_CHECK);
+                            fragmentChange.onFragmentChange(mChannel,UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
                         } else if (Objects.equals(idTagInfo[0], "notFound") || Objects.equals(idTagInfo[0], "")) {
+                            // 목록에 없음(notFount)
                             if (!GlobalVariables.StopTransactionOnInvalidId) {
-                                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.PLUG_CHECK);
-                                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+                                // StopTransactionOnInvalidId = false → PLUG_CHECK
+                                classUiProcess.setUiSeq(UiSeq.PLUG_CHECK);
+                                fragmentChange.onFragmentChange(mChannel,UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
                             } else {
+                                // StopTransactionOnInvalidId = true → 서버에 Authorize 요청
                                 processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
                                         GlobalVariables.MESSAGE_HANDLER_AUTHORIZE,
                                         chargingCurrentData.getConnectorId(),
@@ -318,10 +330,10 @@ public class MemberCardWaitFragment extends Fragment  {
 //                                }
                             }
                         } else {
-                            // 인증 실패
-                            ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).getChargingCurrentData().setAuthorizeResult(false);
-                            ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).onHome();
-                            RxData rxData = ((MainActivity) MainActivity.mContext).getControlBoard().getRxData(mChannel);
+                            // 인증 실패 → HOME 이동
+                            classUiProcess.getChargingCurrentData().setAuthorizeResult(false);
+                            classUiProcess.onHome();
+                            RxData rxData = activity.getControlBoard().getRxData(mChannel);
                             if (!rxData.isCsPilot() && Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
                                 chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
                                 processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
@@ -339,7 +351,7 @@ public class MemberCardWaitFragment extends Fragment  {
             } else {
                 // central system send
                 SocketState state = socketReceiveMessage.getSocket().getState();
-                if (state == SocketState.OPEN) {
+                if (state == SocketState.OPEN) {    // 서버 연결됨
                     if (Objects.equals(UiSeq.CHARGING, uiSeq)) {
                         boolean sendAuthorizeForStop =
                                 !Objects.equals(chargingCurrentData.getIdTag(), chargingCurrentData.getIdTagStop()) &&
@@ -354,10 +366,10 @@ public class MemberCardWaitFragment extends Fragment  {
                                     null,
                                     false));
                         } else if (Objects.equals(chargingCurrentData.getIdTag(), chargingCurrentData.getIdTagStop())) {
-                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
+                            fragmentChange.onFragmentChange(mChannel,UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
                         } else {
-                            ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.CHARGING);
-                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
+                            classUiProcess.setUiSeq(UiSeq.CHARGING);
+                            fragmentChange.onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
                         }
                     } else {
                         processHandler.sendMessage(socketReceiveMessage.onMakeHandlerMessage(
@@ -373,10 +385,10 @@ public class MemberCardWaitFragment extends Fragment  {
 //                    if (Objects.equals(UiSeq.CHARGING, uiSeq)) {
 //                        if ((Objects.equals(chargingCurrentData.getIdTag(), chargingCurrentData.getIdTagStop()))
 //                            || Objects.equals(chargingCurrentData.getParentIdTag(), chargingCurrentData.getParentIdTagStop())) {
-//                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
+//                            fragmentChange.onFragmentChange(UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
 //                        } else {
 //                            ((MainActivity) MainActivity.mContext).getClassUiProcess().setUiSeq(UiSeq.CHARGING);
-//                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(UiSeq.CHARGING, "CHARGING", null);
+//                            fragmentChange.onFragmentChange(UiSeq.CHARGING, "CHARGING", null);
 //                        }
 //                    } else {
 //                        if (chargingCurrentData.getChargePointStatus() == ChargePointStatus.Reserved) {
@@ -402,10 +414,10 @@ public class MemberCardWaitFragment extends Fragment  {
                         if (Objects.equals(UiSeq.CHARGING, uiSeq)) {
                             if (Objects.equals(chargingCurrentData.getParentIdTag(), idTagInfo[1]) ||
                                     Objects.equals(chargingCurrentData.getIdTag(), chargingCurrentData.getIdTagStop())) {
-                                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
+                                fragmentChange.onFragmentChange(mChannel,UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
                             } else {
                                 classUiProcess.setUiSeq(UiSeq.CHARGING);
-                                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
+                                fragmentChange.onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
                             }
                         } else {
                             if (Objects.equals(idTagInfo[0], chargingCurrentData.getIdTag()) || GlobalVariables.isAllowOfflineTxForUnknownId() ||
@@ -424,27 +436,27 @@ public class MemberCardWaitFragment extends Fragment  {
                                 }
                                 chargingCurrentData.setStopReason(!Objects.equals(idTagInfo[0], chargingCurrentData.getIdTag()) &&
                                         GlobalVariables.isStopTransactionOnInvalidId() ? Reason.DeAuthorized : chargingCurrentData.getStopReason());
-                                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.PLUG_CHECK);
-                                ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+                                classUiProcess.setUiSeq(UiSeq.PLUG_CHECK);
+                                fragmentChange.onFragmentChange(mChannel,UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
                             } else {
                                 // 인증 실패
                                 Toast.makeText(getActivity(), "인증 실패. ", Toast.LENGTH_SHORT).show();
-                                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).onHome();
+                                classUiProcess.onHome();
                             }
                         }
                     } else {
                         Toast.makeText(getActivity(), "서버와 통신 DISCONNECT!!! 인증 실패. ", Toast.LENGTH_SHORT).show();
                         if (Objects.equals(UiSeq.CHARGING, uiSeq)) {
-                            ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).setUiSeq(UiSeq.CHARGING);
-                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
+                            classUiProcess.setUiSeq(UiSeq.CHARGING);
+                            fragmentChange.onFragmentChange(mChannel,UiSeq.CHARGING, "CHARGING", null);
                         } else {
-                            ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).onHome();
+                            activity.getClassUiProcess(mChannel).onHome();
                         }
                     }
                 }
             }
         } catch (Exception e) {
-            logger.error(" MemberCardWaitFragment error : {}", e.getMessage());
+            logger.error("onViewCreated error : {}", e.getMessage(), e);
         }
     }
 
@@ -463,8 +475,13 @@ public class MemberCardWaitFragment extends Fragment  {
                 imageViewLoading.setBackground(null);
             }
 
+            if (countHandler != null) {
+                countHandler.removeCallbacks(countRunnable);
+                countHandler.removeCallbacksAndMessages(null);
+                countHandler.removeMessages(0);
+            }
         } catch (Exception e) {
-            logger.error("MemberCardWaitFragment onDestroyView error : {}", e.getMessage());
+            logger.error("onDestroyView error : {}", e.getMessage());
         }
         super.onDestroyView();
     }
@@ -472,14 +489,5 @@ public class MemberCardWaitFragment extends Fragment  {
     @Override
     public void onDetach() {
         super.onDetach();
-        try {
-            if (countHandler != null) {
-                countHandler.removeCallbacks(countRunnable);
-                countHandler.removeCallbacksAndMessages(null);
-                countHandler.removeMessages(0);
-            }
-        } catch (Exception e) {
-            logger.error("MemberCardWaitFragment onDetach error : {} ", e.getMessage());
-        }
     }
 }
