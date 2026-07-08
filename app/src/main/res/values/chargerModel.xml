@@ -3,5 +3,6 @@
     <string-array name="chargerModel">
         <item> DEVS050D</item>
         <item> DEVS100D</item>
+        <item> DEVD240</item>
     </string-array>
 </resources>

@@ -9,8 +9,9 @@ import java.io.File;
 
 public class GlobalVariables {
 
-    //storage/emulated/0/download
-    public static String ROOT_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
+    //storage/emulated/0/Android/data/com.dongah.dispenser/files
+    public static String ROOT_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Android" +
+            File.separator + "data" + File.separator + "com.dongah.dispenser" + File.separator + "files";
     public static final String PACKAGE_NAME=  "com.dongah.autoupdates";
     public static final String PACKAGE_CLASS_NAME = "com.dongah.autoupdates.MainActivity";
 

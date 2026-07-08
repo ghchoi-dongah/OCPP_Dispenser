@@ -126,7 +126,7 @@ public class ChargerConfiguration {
     public int configCnt = 10;
 
     public ChargerConfiguration() {
-        setRootPath(Environment.getExternalStorageDirectory().toString() + File.separator + "Download");
+        setRootPath(GlobalVariables.getRootPath());
         fileManagement = new FileManagement();
     }
 

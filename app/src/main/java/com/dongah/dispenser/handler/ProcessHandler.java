@@ -693,7 +693,7 @@ public class ProcessHandler extends Handler {
 
                     boolean found = false;
                     FileManagement fileManagement = new FileManagement();
-                    String rootPath = Environment.getExternalStorageDirectory().toString() + File.separator + "Download" + File.separator + "configurationKey";
+                    String rootPath = GlobalVariables.getRootPath() + File.separator + "ConfigurationKey";
                     try {
                         configurationString = fileManagement.getStringFromFile(rootPath);
                         jsonObjectData = new JSONObject(configurationString);
@@ -762,7 +762,7 @@ public class ProcessHandler extends Handler {
                     ClearChargingProfileStatus clearChargingProfileStatus = ClearChargingProfileStatus.Unknown;
                     uuid = bundle.getString("uuid");
                     FileManagement fileManagement = new FileManagement();
-                    String rootPath = Environment.getExternalStorageDirectory().toString() + File.separator + "Download" + File.separator + "ConfigurationKey";
+                    String rootPath = GlobalVariables.getRootPath() + File.separator + "ConfigurationKey";
                     String configurationString = fileManagement.getStringFromFile(rootPath);
                     JSONObject jsonObject = new JSONObject(configurationString);
                     JSONArray jsonArray = jsonObject.getJSONArray("values");

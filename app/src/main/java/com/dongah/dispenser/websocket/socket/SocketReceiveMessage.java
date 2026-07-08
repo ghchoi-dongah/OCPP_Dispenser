@@ -2190,7 +2190,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
     public void onChargerOperateSave() {
         try {
             boolean chk;
-            String rootPath = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
+            String rootPath = GlobalVariables.getRootPath();
             String fileName = "ChargerOperate";
             File file = new File(rootPath + File.separator + fileName);
             if (file.exists()) chk = file.delete();

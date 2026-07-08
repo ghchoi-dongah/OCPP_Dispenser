@@ -6,6 +6,7 @@ import android.os.Environment;
 import androidx.annotation.RequiresApi;
 
 import com.dongah.dispenser.MainActivity;
+import com.dongah.dispenser.basefunction.GlobalVariables;
 import com.dongah.dispenser.utils.FileManagement;
 import com.dongah.dispenser.websocket.ocpp.utilities.ZonedDateTimeConvert;
 
@@ -20,7 +21,7 @@ public class DiagnosticsThread extends Thread {
 
     private final static Logger logger = LoggerFactory.getLogger(DiagnosticsThread.class);
 
-    private static final String FILE_PATH = Environment.getExternalStorageDirectory().toString() + "/Download";
+    private static final String FILE_PATH = GlobalVariables.getRootPath();
     private static final String FILE_NAME = "diagnostics.dongah";
     boolean stopped;
     long delayTime;

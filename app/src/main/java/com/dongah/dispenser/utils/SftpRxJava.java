@@ -282,7 +282,7 @@ public class SftpRxJava {
     }
 
     /**
-     * local version (storage/emulated/0/Download/version)
+     * local version (storage/emulated/0/Android/data/com.dongah.dispenser/files/version)
      *
      * @return version
      */
