@@ -39,7 +39,7 @@ public class ChargerConfiguration {
     /**
      * 충전기 ID, 충전기 No
      */
-    public String chargerId = "";
+    public String chargerId = "DAE000101";
 
 
 //    /**
@@ -59,7 +59,7 @@ public class ChargerConfiguration {
     /**
      * 충전기 타입
      */
-    public int chargerType = 5;
+    public int chargerType = 9;
 
     /**
      * 0:credit+member  1:member
@@ -76,7 +76,7 @@ public class ChargerConfiguration {
     /**
      * device serial port
      */
-    public String controlCom = "/dev/ttyS4";
+    public String controlCom = "/dev/ttyS7";
     public String rfCom = "/dev/ttyS3";     //not used
     public String CreditCom = "/dev/ttyS2";
 

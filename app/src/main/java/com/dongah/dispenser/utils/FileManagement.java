@@ -32,8 +32,12 @@ public class FileManagement {
         boolean result = false, check;
         try {
             File parent = new File(filePath);
-            if (!parent.exists()) check = parent.mkdir();
+            if (!parent.exists()) check = parent.mkdirs();
             File file = new File(filePath + File.separator + fileName);
+            if (file.exists() && !file.canWrite()) {
+                // ADB push 등으로 생성된 파일은 소유자가 달라 쓰기 불가 → 삭제 후 재생성
+                file.delete();
+            }
             if (!file.exists()) {
                 check = file.createNewFile();
             }
@@ -75,7 +79,7 @@ public class FileManagement {
 
         try {
             File targetDir = new File(filePath);
-            if (!targetDir.exists()) check = targetDir.mkdir();
+            if (!targetDir.exists()) check = targetDir.mkdirs();
             File targetFile = new File(filePath + File.separator + fileName);
             if (!targetFile.exists()) check = targetFile.createNewFile();
 

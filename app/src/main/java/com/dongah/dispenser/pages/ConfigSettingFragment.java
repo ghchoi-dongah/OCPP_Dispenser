@@ -9,7 +9,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.TextUtils;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -58,6 +57,7 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
     private String mParam1;
     private String mParam2;
 
+    MainActivity activity;
     ChargerConfiguration chargerConfiguration;
     InputMethodManager imm;
     Spinner spChargerType, spChargerModel, spPayMode, spMode, spSecurityProfile;
@@ -110,7 +110,9 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
         View view = inflater.inflate(R.layout.fragment_config_setting, container, false);
         try {
             //* charger configuration */
-            chargerConfiguration = ((MainActivity) MainActivity.mContext).getChargerConfiguration();
+            activity = (MainActivity)MainActivity.mContext;
+            chargerConfiguration = activity.getChargerConfiguration();
+
             // keyboard hidden*/
             imm = (InputMethodManager) (MainActivity.mContext).getSystemService(INPUT_METHOD_SERVICE);
             btnKeyBoard = view.findViewById(R.id.btnKeyBoard);
@@ -151,6 +153,7 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
             spChargerModel.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
                 @Override
                 public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                    spChargerModelCode = position;
                     chargerConfiguration.setChargerPointModelCode(position);
                     Resources resources = getResources();
                     String[] chargerModel = resources.getStringArray(R.array.chargerModel);
@@ -334,7 +337,7 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
                             onSaveConfiguration();
                             // 전류 제한 설정
                             for (int i = 0; i < GlobalVariables.maxChannel; i++) {
-                                ((MainActivity) MainActivity.mContext).getControlBoard().getTxData(i).setOutPowerLimit((short) Integer.parseInt(editDR.getText().toString()));
+                                activity.getControlBoard().getTxData(i).setOutPowerLimit((short) Integer.parseInt(editDR.getText().toString()));
                             }
                             new Handler(Looper.getMainLooper()).postDelayed(new Runnable() {
                                 @Override
@@ -362,7 +365,7 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
                 logger.error("fragment change fail : {}", e.getMessage());
             }
         } else if (Objects.equals(v.getId(), R.id.btnPowerOff)) {
-            ((MainActivity) MainActivity.mContext).onRebooting("Hard");
+            activity.onRebooting("Hard");
         }
     }
 
@@ -370,20 +373,14 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
     @Override
     public void onDetach() {
         super.onDetach();
-        // header title message change
-        SharedModel sharedModel = new ViewModelProvider(requireActivity()).get(SharedModel.class);
-        String[] requestStrings = new String[1];
-        requestStrings[0] = "0";
-        sharedModel.setMutableLiveData(requestStrings);
-    }
-
-    private void onTestModeSetting(int modeType) {
         try {
-//            for (int i = 0; i <GlobalVariables.maxChannel ; i++) {
-//                ((MainActivity) MainActivity.mContext).getControlBoard().getTxData(i).setTestMode((short)modeType);
-//            }
+            // header title message change
+            SharedModel sharedModel = new ViewModelProvider(requireActivity()).get(SharedModel.class);
+            String[] requestStrings = new String[1];
+            requestStrings[0] = "0";
+            sharedModel.setMutableLiveData(requestStrings);
         } catch (Exception e) {
-            logger.error(e.getMessage());
+            logger.error("onDetach error : {}", e.getMessage(), e);
         }
     }
 
@@ -394,6 +391,16 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
             chargerConfiguration.onLoadConfiguration();
         } catch (Exception e) {
             logger.error("onSaveConfiguration error : {}", e.getMessage(), e);
+            Toast.makeText(getActivity(), "설정 저장 실패: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    private int parseIntSafe(EditText editText, int defaultValue) {
+        try {
+            String text = editText.getText().toString().trim();
+            return TextUtils.isEmpty(text) ? defaultValue : Integer.parseInt(text);
+        } catch (NumberFormatException e) {
+            return defaultValue;
         }
     }
 
@@ -405,7 +412,7 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
 
             chargerConfiguration.setServerHttpString(editHttpURL.getText().toString());
             chargerConfiguration.setServerConnectingString(editServerUrl.getText().toString());
-            chargerConfiguration.setServerPort(Integer.parseInt(editPort.getText().toString()));
+            chargerConfiguration.setServerPort(parseIntSafe(editPort, chargerConfiguration.getServerPort()));
 
             chargerConfiguration.setControlCom(editControlPort.getText().toString());
             chargerConfiguration.setRfCom(editRfPort.getText().toString());
@@ -419,12 +426,12 @@ public class ConfigSettingFragment extends Fragment implements View.OnClickListe
             chargerConfiguration.setIccid(editIccId.getText().toString());
             chargerConfiguration.setImsi(editImsi.getText().toString());
             chargerConfiguration.setTestPrice(editTestPrice.getText().toString());
-            chargerConfiguration.setDr(Integer.parseInt(editDR.getText().toString()));
+            chargerConfiguration.setDr(parseIntSafe(editDR, chargerConfiguration.getDr()));
             chargerConfiguration.setGpsX(editGpsX.getText().toString());
             chargerConfiguration.setGpsY(editGpsY.getText().toString());
-            chargerConfiguration.setStatusNotificationDelay(Integer.parseInt(editStatusNotificationDelay.getText().toString()));
-            chargerConfiguration.setTargetSoc(Integer.parseInt(editTargetSoc.getText().toString()));
-            chargerConfiguration.setTargetChargingTime(Integer.parseInt(editTargetChargingTime.getText().toString()));
+            chargerConfiguration.setStatusNotificationDelay(parseIntSafe(editStatusNotificationDelay, chargerConfiguration.getStatusNotificationDelay()));
+            chargerConfiguration.setTargetSoc(parseIntSafe(editTargetSoc, chargerConfiguration.getTargetSoc()));
+            chargerConfiguration.setTargetChargingTime(parseIntSafe(editTargetChargingTime, chargerConfiguration.getTargetChargingTime()));
 
             chargerConfiguration.setSelectPayment(String.valueOf(spPayModePos));
             chargerConfiguration.setAuthMode(String.valueOf(spModePos));

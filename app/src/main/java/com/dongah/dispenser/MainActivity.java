@@ -193,6 +193,11 @@ public class MainActivity extends AppCompatActivity {
         toastPositionMake = new ToastPositionMake(this);
 
         // 1. charger configuration (config 파일 우선 로드 → SecurityProfile 기본값 설정)
+        // getExternalFilesDir()로 OS가 앱 전용 디렉토리를 생성 → 별도 권한 없이 읽기/쓰기 가능
+        File externalFilesDir = getExternalFilesDir(null);
+        if (externalFilesDir != null) {
+            GlobalVariables.setRootPath(externalFilesDir.getAbsolutePath());
+        }
         chargerConfiguration = new ChargerConfiguration();
         chargerConfiguration.onLoadConfiguration();
         textViewVersionValue.setText("VER-DEVD " + chargerConfiguration.getFirmwareVersion() + " | ");
@@ -221,12 +226,20 @@ public class MainActivity extends AppCompatActivity {
         onChargerOperate();
 
         // TEST 동아 서버
+        /** security profile
+        *  0: No Security (WS)
+         * 1: Unsecured (WS)
+         * 2: TLS (WSS)
+         * 3: TLS + Client Certificate (WSS)
+         * */
         String _sp = GlobalVariables.getSecurityProfile();
-        String baseUrl = (Objects.equals(_sp, "2") || Objects.equals(_sp, "3") ? "wss://" : "ws://") +  chargerConfiguration.getServerConnectingString() +
-                ":" + chargerConfiguration.getServerPort() + "/" + chargerConfiguration.getChargerId();
+        String baseUrl = (Objects.equals(_sp, "2") || Objects.equals(_sp, "3") ? "wss://" : "ws://") +
+                chargerConfiguration.getServerConnectingString() + ":" + chargerConfiguration.getServerPort() +
+                "/" + chargerConfiguration.getChargerId();
 
         //스마트 그리드 테스트용
-//        String baseUrl =  (GlobalVariables.getSecurityProfile().equals("2") ? "wss://" : "ws://") + chargerConfiguration.getServerConnectingString() + ":" +
+//        String baseUrl =  (GlobalVariables.getSecurityProfile().equals("2") ? "wss://" : "ws://") +
+//                chargerConfiguration.getServerConnectingString() + ":" +
 //                chargerConfiguration.getServerPort() + "/" + chargerConfiguration.getChargerId() ;
 
         socketReceiveMessage = new SocketReceiveMessage(baseUrl);

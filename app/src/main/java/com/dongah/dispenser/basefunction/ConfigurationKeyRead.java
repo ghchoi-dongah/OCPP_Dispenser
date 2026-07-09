@@ -1,5 +1,6 @@
 package com.dongah.dispenser.basefunction;
 
+import com.dongah.dispenser.MainActivity;
 import com.dongah.dispenser.utils.FileManagement;
 
 import org.json.JSONArray;
@@ -63,6 +64,7 @@ public class ConfigurationKeyRead {
                         GlobalVariables.setAuthorizationKey(contDetail.getString("value"));
                     } else if (Objects.equals("SecurityProfile", contDetail.getString("key"))) {
                         GlobalVariables.setSecurityProfile(contDetail.getString("value"));
+                        ((MainActivity) MainActivity.mContext).getChargerConfiguration().setSecurityProfile(contDetail.getString("value"));
                     }
                 }
             }

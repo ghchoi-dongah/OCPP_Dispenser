@@ -4,5 +4,6 @@
         <item>0 - 없음 (WS)</item>
         <item>1 - Basic Auth (WS)</item>
         <item>2 - TLS + Basic Auth (WSS)</item>
+        <item>3 - TLS + Client Certificate (WSS)</item>
     </string-array>
 </resources>
