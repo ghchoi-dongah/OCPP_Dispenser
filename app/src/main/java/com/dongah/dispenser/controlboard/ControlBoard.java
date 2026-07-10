@@ -285,10 +285,10 @@ public class ControlBoard implements Runnable {
                     }
                     Thread.sleep(150);
                 } catch (Exception e) {
-                    logger.error("receive error : {}", e.getMessage());
+                    logger.error("receive error : {}", e.getMessage(), e);
                 }
             } catch (Exception e) {
-                logger.error(" thread receive error : {} ", e.getMessage());
+                logger.error("thread receive error : {} ", e.getMessage(), e);
             }
 
         }

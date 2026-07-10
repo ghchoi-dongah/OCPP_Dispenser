@@ -1,6 +1,7 @@
 package com.dongah.dispenser.basefunction;
 
 import android.os.Build;
+import android.os.Environment;
 
 import androidx.annotation.RequiresApi;
 
@@ -41,7 +42,8 @@ public class FtpRxJava {
 //    private static String REMOTE_PATH = "/app/upload/dongah/apk";
     private static String REMOTE_PATH = "/upload";
 
-    private static final String LOCAL_PATH = GlobalVariables.getRootPath();
+//    private static final String LOCAL_PATH = GlobalVariables.getRootPath();
+    private static final String LOCAL_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
 
     private final CompositeDisposable disposables = new CompositeDisposable();
     FileTransType fileTransType = FileTransType.NONE;

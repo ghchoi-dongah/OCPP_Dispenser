@@ -6,12 +6,22 @@ android {
     namespace = "com.dongah.dispenser"
     compileSdk = 36
 
+    // hola
+    signingConfigs {
+        getByName("debug") {
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storeFile = file("D:\\AndroidDongah\\JKS_hola\\platform.jks")
+            storePassword = "android"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.dongah.dispenser"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 100
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -25,10 +35,6 @@ android {
     buildTypes {
         getByName("debug") {
             signingConfig = signingConfigs.getByName("debug")
-        }
-        debug {
-            isDebuggable = true
-            isMinifyEnabled = false
         }
         release {
             isMinifyEnabled = false
@@ -59,6 +65,7 @@ dependencies {
     implementation(libs.zxing)
     implementation(libs.jsch)
     implementation(libs.slf4j)
+    implementation(libs.slf4j.android)
     implementation(libs.gson)
     implementation(libs.jaxb)
     implementation(libs.backport)

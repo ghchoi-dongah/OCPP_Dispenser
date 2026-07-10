@@ -22,6 +22,7 @@ import com.dongah.dispenser.basefunction.FileTransType;
 import com.dongah.dispenser.basefunction.FragmentChange;
 import com.dongah.dispenser.basefunction.FtpRxJava;
 import com.dongah.dispenser.basefunction.GlobalVariables;
+import com.dongah.dispenser.basefunction.HTTPHelper;
 import com.dongah.dispenser.basefunction.PaymentType;
 import com.dongah.dispenser.basefunction.UiSeq;
 import com.dongah.dispenser.controlboard.RxData;
@@ -38,7 +39,10 @@ import com.dongah.dispenser.websocket.ocpp.common.model.Request;
 import com.dongah.dispenser.websocket.ocpp.core.AuthorizationStatus;
 import com.dongah.dispenser.websocket.ocpp.core.AvailabilityType;
 import com.dongah.dispenser.websocket.ocpp.core.BootNotificationRequest;
+import com.dongah.dispenser.websocket.ocpp.core.ChargePointErrorCode;
 import com.dongah.dispenser.websocket.ocpp.core.ChargePointStatus;
+import com.dongah.dispenser.websocket.ocpp.core.StatusNotificationRequest;
+import com.dongah.dispenser.websocket.ocpp.core.StopTransactionRequest;
 import com.dongah.dispenser.websocket.ocpp.core.ChargingProfileKindType;
 import com.dongah.dispenser.websocket.ocpp.core.ChargingProfilePurposeType;
 import com.dongah.dispenser.websocket.ocpp.core.ChargingSchedule;
@@ -54,7 +58,6 @@ import com.dongah.dispenser.websocket.ocpp.core.RemoteStopTransactionConfirmatio
 import com.dongah.dispenser.websocket.ocpp.core.ResetConfirmation;
 import com.dongah.dispenser.websocket.ocpp.core.ResetStatus;
 import com.dongah.dispenser.websocket.ocpp.core.ResetType;
-import com.dongah.dispenser.websocket.ocpp.core.StopTransactionRequest;
 import com.dongah.dispenser.websocket.ocpp.core.UnlockConnectorConfirmation;
 import com.dongah.dispenser.websocket.ocpp.core.UnlockStatus;
 import com.dongah.dispenser.websocket.ocpp.firmware.DiagnosticsStatus;
@@ -130,9 +133,9 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.MGF1ParameterSpec;
 import java.security.spec.PSSParameterSpec;
-import java.text.SimpleDateFormat;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.text.SimpleDateFormat;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.TextStyle;
@@ -141,10 +144,10 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.TimeZone;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.UUID;
 
 import okhttp3.WebSocket;
@@ -439,24 +442,24 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                         // CSMS 응답 interval 값을 ConfigurationKey에 저장 (TC_001)
                                         setConfigurationValue("HeartbeatInterval", String.valueOf(interval));
                                         if (!GlobalVariables.isTriggerBootNotification()) {
-                                        // Status Notification */
-                                        processHandler.sendMessage(onMakeHandlerMessage(
-                                                GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION_BOOT,
-                                                100,
-                                                0,
-                                                null,
-                                                null,
-                                                null,
-                                                false));
-                                        // heart beat */
-                                        processHandler.sendMessage(onMakeHandlerMessage(
-                                                GlobalVariables.MESSAGE_HANDLER_HEART_BEAT,
-                                                100,
-                                                interval,
-                                                null,
-                                                null,
-                                                null,
-                                                false));
+                                            // Status Notification */
+                                            processHandler.sendMessage(onMakeHandlerMessage(
+                                                    GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION_BOOT,
+                                                    100,
+                                                    0,
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    false));
+                                            // heart beat */
+                                            processHandler.sendMessage(onMakeHandlerMessage(
+                                                    GlobalVariables.MESSAGE_HANDLER_HEART_BEAT,
+                                                    100,
+                                                    interval,
+                                                    null,
+                                                    null,
+                                                    null,
+                                                    false));
                                         } else {
                                             GlobalVariables.setTriggerBootNotification(false);
                                         }
@@ -977,15 +980,15 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                 if (!isCharging) {
                                     // 비충전 중: 3초 후 즉시 재부팅
                                     new Handler(Looper.getMainLooper()).postDelayed(() ->
-                                        ((MainActivity) MainActivity.mContext).onRebooting(resetTypeStr), 3000);
+                                            ((MainActivity) MainActivity.mContext).onRebooting(resetTypeStr), 3000);
                                 } else {
                                     // 충전 중: StopTransaction + StatusNotification Finishing 전송 완료 대기 후 재부팅
                                     // 2초 타이머 기준: csStop(2s) + FINISH(2s) + 여유 = 10s
                                     new Handler(Looper.getMainLooper()).postDelayed(() ->
-                                        ((MainActivity) MainActivity.mContext).onRebooting(resetTypeStr), 10000);
+                                            ((MainActivity) MainActivity.mContext).onRebooting(resetTypeStr), 10000);
                                 }
-                        } else if (Objects.equals("RemoteStartTransaction", actionName)) {
-                            // connectorId ==> 채널 정보
+                            } else if (Objects.equals("RemoteStartTransaction", actionName)) {
+                                // connectorId ==> 채널 정보
 
                                 int realConnectorId = jsonObject.has("connectorId") ? jsonObject.getInt("connectorId") : -1;
                                 chargingCurrentData = ((MainActivity) MainActivity.mContext).getClassUiProcess(realConnectorId-1).getChargingCurrentData();
@@ -1036,42 +1039,70 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                     }
                                 }
 
-                            // 충전중 또는 connectorId == 0 이면 reject
-                            if (uiSeq == UiSeq.CHARGING || realConnectorId == 0) {
-                                processHandler.sendMessage(onMakeHandlerMessage(
-                                        GlobalVariables.MESSAGE_HANDLER_REMOTE_START_TRANSACTION,
-                                        realConnectorId,
-                                        0,
-                                        idTag,
-                                        message.getId(),
-                                        null,
-                                        false));
-                            } else {
-                                // remoteStart 응답
-                                boolean startCheck = !jsonObject.has("chargingProfile") || ChargingProfilePurposeType.TxProfile == purposeType;
-                                processHandler.sendMessage(onMakeHandlerMessage(
-                                        GlobalVariables.MESSAGE_HANDLER_REMOTE_START_TRANSACTION,
-                                        realConnectorId,
-                                        0,
-                                        idTag,
-                                        message.getId(),
-                                        null,
-                                        startCheck));
-                                // reject 인 경우 retrun
-                                if (!startCheck) return;
+                                // 충전중 또는 connectorId == 0 이면 reject
+                                if (uiSeq == UiSeq.CHARGING || realConnectorId == 0) {
+                                    processHandler.sendMessage(onMakeHandlerMessage(
+                                            GlobalVariables.MESSAGE_HANDLER_REMOTE_START_TRANSACTION,
+                                            realConnectorId,
+                                            0,
+                                            idTag,
+                                            message.getId(),
+                                            null,
+                                            false));
+                                } else {
+                                    // remoteStart 응답
+                                    boolean startCheck = !jsonObject.has("chargingProfile") || ChargingProfilePurposeType.TxProfile == purposeType;
+                                    processHandler.sendMessage(onMakeHandlerMessage(
+                                            GlobalVariables.MESSAGE_HANDLER_REMOTE_START_TRANSACTION,
+                                            realConnectorId,
+                                            0,
+                                            idTag,
+                                            message.getId(),
+                                            null,
+                                            startCheck));
+                                    // reject 인 경우 retrun
+                                    if (!startCheck) return;
 
-                                // 2026.02.09 추가
-                                String[] idTagInfo = getLocalAuthorizationListStrings(uiSeq == UiSeq.CHARGING ? chargingCurrentData.getIdTagStop() : chargingCurrentData.getIdTag());
-                                boolean localFind =  (Objects.equals(idTagInfo[0], chargingCurrentData.getIdTag()));
-                                //Authoriza Send
-                                if (Objects.equals(socket.getState(), SocketState.OPEN) && GlobalVariables.isAuthorizeRemoteTxRequests()) {
-                                    if (localFind && GlobalVariables.LocalAuthListEnabled && GlobalVariables.isLocalPreAuthorize()) {
-                                        // 생략
+                                    // 2026.02.09 추가
+                                    String[] idTagInfo = getLocalAuthorizationListStrings(uiSeq == UiSeq.CHARGING ? chargingCurrentData.getIdTagStop() : chargingCurrentData.getIdTag());
+                                    boolean localFind =  (Objects.equals(idTagInfo[0], chargingCurrentData.getIdTag()));
+                                    //Authoriza Send
+                                    if (Objects.equals(socket.getState(), SocketState.OPEN) && GlobalVariables.isAuthorizeRemoteTxRequests()) {
+                                        if (localFind && GlobalVariables.LocalAuthListEnabled && GlobalVariables.isLocalPreAuthorize()) {
+                                            // 생략
+                                            chargingCurrentData.setAuthorizeResult(true);
+                                            chargingCurrentData.setParentIdTag(idTagInfo[1]);
+                                            //preparing
+                                            if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing) &&
+                                                    Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
+                                                chargingCurrentData.setChargePointStatus(ChargePointStatus.Preparing);
+                                                processHandler.sendMessage(onMakeHandlerMessage(
+                                                        GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
+                                                        chargingCurrentData.getConnectorId(),
+                                                        0,
+                                                        null,
+                                                        null,
+                                                        null,
+                                                        false));
+                                            }
+                                            ((MainActivity) MainActivity.mContext).getClassUiProcess(realConnectorId - 1).setUiSeq(UiSeq.PLUG_CHECK);
+                                            ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(realConnectorId - 1, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
+                                        } else {
+                                            processHandler.sendMessage(onMakeHandlerMessage(
+                                                    GlobalVariables.MESSAGE_HANDLER_AUTHORIZE,
+                                                    realConnectorId,
+                                                    0,
+                                                    idTag,
+                                                    null,
+                                                    null,
+                                                    false));
+                                            // StatusNoti(Preparing)은 Authorize.conf(Accepted) 수신 후 전송 (TC: Authorize → Accept → StatusNoti 순서)
+                                        }
+                                    } else if (!GlobalVariables.isAuthorizeRemoteTxRequests()) {
+                                        // AuthorizeRemoteTxRequests=false: Authorize 없이 바로 Preparing + PLUG_CHECK
                                         chargingCurrentData.setAuthorizeResult(true);
-                                        chargingCurrentData.setParentIdTag(idTagInfo[1]);
-                                        //preparing
-                                        if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing) &&
-                                                Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
+                                        if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing)
+                                                && Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
                                             chargingCurrentData.setChargePointStatus(ChargePointStatus.Preparing);
                                             processHandler.sendMessage(onMakeHandlerMessage(
                                                     GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
@@ -1082,39 +1113,11 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                                     null,
                                                     false));
                                         }
-                                        ((MainActivity) MainActivity.mContext).getClassUiProcess(realConnectorId - 1).setUiSeq(UiSeq.PLUG_CHECK);
-                                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(realConnectorId - 1, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
-                                    } else {
-                                        processHandler.sendMessage(onMakeHandlerMessage(
-                                                GlobalVariables.MESSAGE_HANDLER_AUTHORIZE,
-                                                realConnectorId,
-                                                0,
-                                                idTag,
-                                                null,
-                                                null,
-                                                false));
-                                        // StatusNoti(Preparing)은 Authorize.conf(Accepted) 수신 후 전송 (TC: Authorize → Accept → StatusNoti 순서)
+                                        ((MainActivity) MainActivity.mContext).getClassUiProcess(channel).setUiSeq(UiSeq.PLUG_CHECK);
+                                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(channel, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
                                     }
-                                } else if (!GlobalVariables.isAuthorizeRemoteTxRequests()) {
-                                    // AuthorizeRemoteTxRequests=false: Authorize 없이 바로 Preparing + PLUG_CHECK
-                                    chargingCurrentData.setAuthorizeResult(true);
-                                    if (!Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing)
-                                            && Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
-                                        chargingCurrentData.setChargePointStatus(ChargePointStatus.Preparing);
-                                        processHandler.sendMessage(onMakeHandlerMessage(
-                                                GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
-                                                chargingCurrentData.getConnectorId(),
-                                                0,
-                                                null,
-                                                null,
-                                                null,
-                                                false));
-                                    }
-                                    ((MainActivity) MainActivity.mContext).getClassUiProcess(channel).setUiSeq(UiSeq.PLUG_CHECK);
-                                    ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(channel, UiSeq.PLUG_CHECK, "PLUG_CHECK", null);
                                 }
-                            }
-                        } else if (Objects.equals("RemoteStopTransaction", actionName)) {
+                            } else if (Objects.equals("RemoteStopTransaction", actionName)) {
                                 boolean result = false;
                                 int remoteCh = 0;
                                 int transactionId = jsonObject.has("transactionId") ? jsonObject.getInt("transactionId") : 0;
@@ -1139,8 +1142,8 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                     //hash map delete
                                     getConnectorIdHashMap.remove(transactionId);
                                 }
-                        } else if (Objects.equals("DataTransfer", actionName)) {
-                            //* dataTransfer-(messageId) */
+                            } else if (Objects.equals("DataTransfer", actionName)) {
+                                //* dataTransfer-(messageId) */
                                 if (jsonObject.has("messageId")) {
                                     if (Objects.equals(jsonObject.getString("messageId"), "announce")) {
                                         String vendorId = jsonObject.has("vendorId") ? jsonObject.getString("vendorId") : null;
@@ -1162,7 +1165,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                     DataTransferConfirmation dataTransferConfirmation = new DataTransferConfirmation(DataTransferStatus.Rejected);
                                     onResultSend(actionName, message.getId(), dataTransferConfirmation);
                                 }
-                        } else if (Objects.equals("TriggerMessage", actionName)) {
+                            } else if (Objects.equals("TriggerMessage", actionName)) {
                                 int triggerConnectorId = jsonObject.has("connectorId") ? jsonObject.getInt("connectorId") : 0;
                                 // 유효 범위: connectorId=0 ~ maxPlugCount-1 (2채널 충전기: 0,1,2 유효)
                                 boolean validConnector = triggerConnectorId >= 0 && triggerConnectorId <= GlobalVariables.maxPlugCount - 1;
@@ -1214,7 +1217,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                 }
 
 
-                            //// original 소스
+                                //// original 소스
 //                                int connectorId = jsonObject.has("connectorId") ? jsonObject.getInt("connectorId") : -1;
 //                                TriggerMessageRequestType triggerMessageRequestType = TriggerMessageRequestType.valueOf(jsonObject.getString("requestedMessage"));
 //                                processHandler.sendMessage(onMakeHandlerMessage(
@@ -1229,7 +1232,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
 //                                    //Meter Value response
 //                                    processHandler.onMeterValueSendOne(connectorId);
 //                                }
-                        } else if (Objects.equals("ChangeConfiguration", actionName)) {
+                            } else if (Objects.equals("ChangeConfiguration", actionName)) {
                                 boolean result;
                                 GlobalVariables.setNotSupportedKey(false);
                                 String key = jsonObject.has("key") ? jsonObject.getString("key") : "";
@@ -1485,7 +1488,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
 //                                }
 
                             } else if (Objects.equals("GetLocalListVersion", actionName)) {
-                               //Local List
+                                //Local List
                                 int localListVersion, listVersion;
                                 File file = new File(GlobalVariables.getRootPath() + File.separator + "localAuthorizationList");
                                 if (!file.exists()) {
@@ -2190,7 +2193,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
     public void onChargerOperateSave() {
         try {
             boolean chk;
-            String rootPath = GlobalVariables.getRootPath();
+            String rootPath = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
             String fileName = "ChargerOperate";
             File file = new File(rootPath + File.separator + fileName);
             if (file.exists()) chk = file.delete();

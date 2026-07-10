@@ -9,13 +9,16 @@ import java.io.File;
 
 public class GlobalVariables {
 
-    //storage/emulated/0/Android/data/com.dongah.dispenser/files
+    //storage/emulated/0/Android/media/files
     public static String ROOT_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Android" +
-            File.separator + "data" + File.separator + "com.dongah.dispenser" + File.separator + "files";
+            File.separator + "media" + File.separator + "files";
+
+//    public static String ROOT_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
+
     public static final String PACKAGE_NAME=  "com.dongah.autoupdates";
     public static final String PACKAGE_CLASS_NAME = "com.dongah.autoupdates.MainActivity";
 
-    public static String VERSION = "DEVS 1.0.0";
+    public static String VERSION = "1.0.1";
     public static String FW_VERSION = "1.0.1";
 
     /**

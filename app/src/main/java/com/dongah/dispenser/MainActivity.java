@@ -5,9 +5,12 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
+import android.provider.Settings;
 import android.os.Looper;
 import android.os.PowerManager;
 import android.view.MotionEvent;
@@ -192,15 +195,22 @@ public class MainActivity extends AppCompatActivity {
 
         toastPositionMake = new ToastPositionMake(this);
 
+        // Android 11 이상에서 외부 저장소 전체 접근 권한 확인
+//        File externalFilesDir = getExternalFilesDir(null);
+//        if (externalFilesDir != null) {
+//            GlobalVariables.setRootPath(externalFilesDir.getAbsolutePath());
+//        }
+//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && !Environment.isExternalStorageManager()) {
+//            Intent intent = new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+//                    Uri.parse("package:" + getPackageName()));
+//            startActivity(intent);
+//            return;
+//        }
+
         // 1. charger configuration (config 파일 우선 로드 → SecurityProfile 기본값 설정)
-        // getExternalFilesDir()로 OS가 앱 전용 디렉토리를 생성 → 별도 권한 없이 읽기/쓰기 가능
-        File externalFilesDir = getExternalFilesDir(null);
-        if (externalFilesDir != null) {
-            GlobalVariables.setRootPath(externalFilesDir.getAbsolutePath());
-        }
         chargerConfiguration = new ChargerConfiguration();
         chargerConfiguration.onLoadConfiguration();
-        textViewVersionValue.setText("VER-DEVD " + chargerConfiguration.getFirmwareVersion() + " | ");
+        textViewVersionValue.setText("VER-DEVD " + GlobalVariables.getVERSION() + " | ");
 
         // ConfigurationKey read (OCPP로 변경된 값이 있으면 GlobalVariables 덮어씀)
         configurationKeyRead = new ConfigurationKeyRead();

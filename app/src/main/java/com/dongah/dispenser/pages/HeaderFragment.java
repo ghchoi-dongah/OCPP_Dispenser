@@ -156,12 +156,16 @@ public class HeaderFragment extends Fragment implements View.OnClickListener {
 
     @Override
     public void onDetach() {
+        super.onDetach();
         try {
-            super.onDetach();
-            view.getAnimation().cancel();
-            view.clearAnimation();
+            if (view != null && view.getAnimation() != null) {
+                view.getAnimation().cancel();
+            }
+            if (view != null) {
+                view.clearAnimation();
+            }
         } catch (Exception e) {
-            logger.error(" HeaderFragment onDetach error : {}" , e.getMessage());
+            logger.error("onDetach error : {}", e.getMessage(), e);
         }
     }
 }
