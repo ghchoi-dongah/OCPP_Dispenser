@@ -134,6 +134,8 @@
     <string name="leftConnector">좌측 커넥터</string>
     <string name="rightConnector">우측 커넥터</string>
     <string name="chargeUnitFormat">충전단가: %1$s 원</string>
+    <string name="connectorSeq">커넥터(순차모드)</string>
+    <string name="seqTime"><font color="#EE282828">예상 충전 시간 : 약 %1$s분 후</font></string>
 
     <string name="qrMessage">간편 QR 결제</string>
     <string name="qrInfoMessage">QR코드를 스캔하여 충전이\n가능합니다.</string>

@@ -14,6 +14,7 @@ import com.dongah.dispenser.pages.AdminPasswordFragment;
 import com.dongah.dispenser.pages.AuthSelectFragment;
 import com.dongah.dispenser.pages.ChargingFinishFragment;
 import com.dongah.dispenser.pages.ChargingFragment;
+import com.dongah.dispenser.pages.ChargingSequentialFragment;
 import com.dongah.dispenser.pages.ConfigSettingFragment;
 import com.dongah.dispenser.pages.ControlDebugFragment;
 import com.dongah.dispenser.pages.CreditCardFragment;
@@ -277,6 +278,17 @@ public class FragmentChange {
                     transaction.commit();
                 } catch (Exception e) {
                     logger.error("onFragmentChange error : productTestFragment {}", e.getMessage());
+                }
+                break;
+            case SEQUENTIAL_CHARGING:
+                try {
+                    onFrameLayoutChange(false);
+                    ChargingSequentialFragment chargingSequentialFragment = new ChargingSequentialFragment();
+                    chargingSequentialFragment.setArguments(bundle);
+                    transaction.replace(frameLayoutId, chargingSequentialFragment, "SEQUENTIAL_CHARGING");
+                    transaction.commit();
+                } catch (Exception e) {
+                    logger.error("onFragmentChange error : chargingSequentialFragment {}", e.getMessage());
                 }
                 break;
         }

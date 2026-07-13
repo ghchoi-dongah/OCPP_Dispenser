@@ -3,7 +3,7 @@ package com.dongah.dispenser.basefunction;
 public enum UiSeq {
     NONE(0),
     INIT(1),
-    CABLE_SELECT(2),
+    SEQUENTIAL_CHARGING(2),
     AUTH_SELECT(3),
     SOC(4),
     MEMBER_CARD(5),

@@ -195,6 +195,9 @@ public class ClassUiProcess implements RfCardReaderListener {
                 case FAULT:
                     handleFault(rxData, txData);
                     break;
+                case SEQUENTIAL_CHARGING:
+                    handleSequentialCharging(rxData);
+                    break;
             }
             prevCsPilot = rxData.getCpVoltage() < 110;
         } catch (Exception e) {
@@ -374,8 +377,8 @@ public class ClassUiProcess implements RfCardReaderListener {
         try {
             UiSeq uiSeq1 = ((MainActivity) MainActivity.mContext).getClassUiProcess(0).getUiSeq();
             UiSeq uiSeq2 = ((MainActivity) MainActivity.mContext).getClassUiProcess(1).getUiSeq();
-            result = (Objects.equals(UiSeq.REBOOTING, uiSeq1) || Objects.equals(UiSeq.INIT, uiSeq1))
-                    && (Objects.equals(UiSeq.REBOOTING, uiSeq2) || Objects.equals(UiSeq.INIT, uiSeq2));
+            result = (Objects.equals(UiSeq.REBOOTING, uiSeq1) || Objects.equals(UiSeq.INIT, uiSeq1) || Objects.equals(UiSeq.SEQUENTIAL_CHARGING, uiSeq1))
+                    && (Objects.equals(UiSeq.REBOOTING, uiSeq2) || Objects.equals(UiSeq.INIT, uiSeq2) || Objects.equals(UiSeq.SEQUENTIAL_CHARGING, uiSeq2));
         } catch (Exception e) {
             logger.error(e.getMessage());
         }
@@ -618,6 +621,9 @@ public class ClassUiProcess implements RfCardReaderListener {
         if (chargingCurrentData.isReBoot() && onRebootCheck()) {
             // rebooting
             setUiSeq(UiSeq.REBOOTING);
+        } else if (!rxData.isCsReady()) {
+            setUiSeq(UiSeq.SEQUENTIAL_CHARGING);
+            fragmentChange.onFragmentChange(getCh(), UiSeq.SEQUENTIAL_CHARGING, "SEQUENTIAL_CHARGING", null);
         }
         if (chargingCurrentData.getChargePointStatus() == ChargePointStatus.Reserved) {
             // reservation
@@ -1018,6 +1024,17 @@ public class ClassUiProcess implements RfCardReaderListener {
                 }
                 onHome();
             }
+        }
+    }
+
+    private void handleSequentialCharging(RxData rxData) {
+        // isCsReady: 대기(true)
+        if (rxData.isCsReady()) {
+            setUiSeq(UiSeq.INIT);
+            fragmentChange.onFragmentChange(getCh(), UiSeq.INIT, "INIT", null);
+        }
+        if (chargingCurrentData.isReBoot() && onRebootCheck()) {
+            setUiSeq(UiSeq.REBOOTING);
         }
     }
 }
