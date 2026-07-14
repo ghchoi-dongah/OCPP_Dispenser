@@ -105,6 +105,7 @@ public class LogDataSave {
             if (files != null) {
                 for (File file : files) {
                     fName = file.getName();
+                    if (!fName.matches("\\d{8}")) continue;
                     fDate = dateSet.parse(fName);
                     calDate = (tDate != null ? tDate.getTime() : 0) - (fDate != null ? fDate.getTime() : 0);
                     calDateDays = calDate / (24 * 60 * 60 * 1000);

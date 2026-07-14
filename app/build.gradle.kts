@@ -7,14 +7,25 @@ android {
     compileSdk = 36
 
     // hola
-    signingConfigs {
+//    signingConfigs {
+//        getByName("debug") {
+//            keyAlias = "androiddebugkey"
+//            keyPassword = "android"
+//            storeFile = file("D:\\AndroidDongah\\JKS_hola\\platform.jks")
+//            storePassword = "android"
+//        }
+//    }
+
+    // clear
+        signingConfigs {
         getByName("debug") {
-            keyAlias = "androiddebugkey"
+            keyAlias = "platform"
             keyPassword = "android"
-            storeFile = file("D:\\AndroidDongah\\JKS_hola\\platform.jks")
+            storeFile = file("D:\\AndroidDongah\\PlatformKeyClear\\keystore\\platform.jks")
             storePassword = "android"
         }
     }
+
 
     defaultConfig {
         applicationId = "com.dongah.dispenser"

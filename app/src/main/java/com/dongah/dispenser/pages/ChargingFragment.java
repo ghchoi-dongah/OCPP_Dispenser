@@ -74,14 +74,16 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
     TextView txtOutVoltage, txtOutCurrent, txtOutPower;
     Handler uiUpdateHandler;
     double powerUnitPrice = 0f;
-    ClassUiProcess classUiProcess;
-    ChargingCurrentData chargingCurrentData;
     Date startTime = null, useTime = null;
     DecimalFormat payFormatter = new DecimalFormat("#,###,##0");
     DecimalFormat powerFormatter = new DecimalFormat("#,###,##0.00");
     DecimalFormat voltageFormatter = new DecimalFormat("#,###,##0.0");
     ZonedDateTimeConvert zonedDateTimeConvert = new ZonedDateTimeConvert();
 
+    MainActivity activity;
+    ClassUiProcess classUiProcess;
+    ChargingCurrentData chargingCurrentData;
+    ChargerConfiguration chargerConfiguration;
     Handler displayHandler;
 
 
@@ -124,6 +126,11 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_charging, container, false);
+        activity = (MainActivity) MainActivity.mContext;
+        classUiProcess = activity.getClassUiProcess(mChannel);
+        chargingCurrentData = activity.getChargingCurrentData(mChannel);
+        chargerConfiguration = activity.getChargerConfiguration();
+
         txtChargePay = view.findViewById(R.id.txtChargePay);
         txtChargeTime = view.findViewById(R.id.txtChargeTime);
         txtAmountOfCharge = view.findViewById(R.id.txtAmountOfCharge);
@@ -140,7 +147,7 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
         textViewRequestCurrentValue = view.findViewById(R.id.textViewRequestCurrentValue);
         textViewLimitSoc = view.findViewById(R.id.textViewLimitSoc);
         progressCircular = view.findViewById(R.id.progressCircular);
-        chargingCurrentData = ((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel);
+
         return view;
     }
 
@@ -166,13 +173,12 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
             }
 
             try {
-                classUiProcess = ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel);
                 startTime = zonedDateTimeConvert.doStringDateToDate(chargingCurrentData.getChargingStartTime());
                 powerUnitPrice = chargingCurrentData.getPowerUnitPrice();
                 textViewInputUnit.setText(String.valueOf(powerUnitPrice) + " 원");
                 textViewInputPrePayment.setText(chargingCurrentData.getPrePayment() + " 원");
-                textViewLimitSoc.setText(getString(R.string.limitSoc) + ((MainActivity) MainActivity.mContext).getChargerConfiguration().getTargetSoc() + "%");
-                progressCircular.setProgress(((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel).getSoc(), true);
+                textViewLimitSoc.setText(getString(R.string.limitSoc) + chargerConfiguration.getTargetSoc() + "%");
+                progressCircular.setProgress(chargingCurrentData.getSoc(), true);
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }
@@ -221,7 +227,7 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
                                 txtOutVoltage.setText(voltageFormatter.format(chargingCurrentData.getOutPutVoltage() * 0.1) + " V");
                                 txtOutCurrent.setText(powerFormatter.format(chargingCurrentData.getOutPutCurrent() * 0.1) + " A");
                                 txtOutPower.setText(powerFormatter.format(chargingCurrentData.getOutPutVoltage() * chargingCurrentData.getOutPutCurrent() * 0.00001) + " kW");
-                                textViewRequestCurrentValue.setText(powerFormatter.format(((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel).getTargetCurrent() * 0.1) + "A");
+                                textViewRequestCurrentValue.setText(powerFormatter.format(chargingCurrentData.getTargetCurrent() * 0.1) + "A");
 
 //
 //                                //log data
@@ -241,7 +247,7 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
 
                             }
                         } catch (Exception e) {
-                            logger.error("ChargingFragment onCharging : {}", e.getMessage());
+                            logger.error("onCharging error : {}", e.getMessage());
                         }
                     }
                 });
@@ -255,22 +261,21 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
         int getId = v.getId();
         if (Objects.equals(getId, R.id.btnChargingStop)) {
             try {
-                ChargerConfiguration chargerConfiguration = ((MainActivity) MainActivity.mContext).getChargerConfiguration();
                 if (!Objects.equals(chargerConfiguration.getAuthMode(), "0")) {
-                    ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel, UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
+                    activity.getFragmentChange().onFragmentChange(mChannel, UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
                 } else {
                     //서버 인증 모드인 경우
-                    ChargingCurrentData chargingCurrentData = ((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel);
+                    ChargingCurrentData chargingCurrentData = activity.getChargingCurrentData(mChannel);
                     PaymentType paymentType = chargingCurrentData.getPaymentType();
                     // 오프라인/RemoteStart/StopConfirm=true 인 경우 RF카드 인증으로 종료
-                    SocketState socketState = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage().getSocket().getState();
+                    SocketState socketState = activity.getSocketReceiveMessage().getSocket().getState();
                     boolean isOffline = socketState != SocketState.OPEN;
                     boolean requireRfCard = Objects.equals(paymentType, PaymentType.MEMBER) &&
                             (chargerConfiguration.isStopConfirm() || chargingCurrentData.isRemoteStart() || isOffline);
                     if (requireRfCard) {
-                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel, UiSeq.MEMBER_CARD, "MEMBER_CARD", null);
+                        activity.getFragmentChange().onFragmentChange(mChannel, UiSeq.MEMBER_CARD, "MEMBER_CARD", null);
                     } else {
-                        ((MainActivity) MainActivity.mContext).getFragmentChange().onFragmentChange(mChannel, UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
+                        activity.getFragmentChange().onFragmentChange(mChannel, UiSeq.CHARGING_STOP_MESSAGE, "CHARGING_STOP_MESSAGE", null);
                     }
                 }
 
@@ -284,14 +289,20 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
     public void onDetach() {
         super.onDetach();
         try {
-            uiUpdateHandler.removeCallbacksAndMessages(null);
-            uiUpdateHandler.removeMessages(0);
+            if (uiUpdateHandler != null) {
+                uiUpdateHandler.removeCallbacksAndMessages(null);
+                uiUpdateHandler.removeMessages(0);
+                uiUpdateHandler = null;
+            }
+
             //display handler
-            displayHandler.removeCallbacksAndMessages(null);
-            displayHandler.removeMessages(0);
-            if (uiUpdateHandler != null) uiUpdateHandler = null;
+            if (displayHandler != null) {
+                displayHandler.removeCallbacksAndMessages(null);
+                displayHandler.removeMessages(0);
+                displayHandler = null;
+            }
         } catch (Exception e) {
-            logger.error("ChargingFragment onDetach : {}", e.getMessage());
+            logger.error("onDetach : {}", e.getMessage(), e);
         }
     }
 
@@ -305,22 +316,20 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
         sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
         try {
             //미전송 데이터 저장 후, reboot
-            chk = ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).getUiSeq();
+            chk = activity.getClassUiProcess(mChannel).getUiSeq();
             if (Objects.equals(chk, UiSeq.CHARGING)) {
                 ZonedDateTimeConvert zonedDateTimeConvert;
-                ZonedDateTime timestamp;
-                ((MainActivity) MainActivity.mContext).getControlBoard().getTxData(mChannel).setStop(true);
-                ((MainActivity) MainActivity.mContext).getControlBoard().getTxData(mChannel).setStart(false);
-                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).getChargingCurrentData().setUserStop(false);
+                activity.getControlBoard().getTxData(mChannel).setStop(true);
+                activity.getControlBoard().getTxData(mChannel).setStart(false);
+                activity.getClassUiProcess(mChannel).getChargingCurrentData().setUserStop(false);
                 try {
-                    //
-                    ProcessHandler processHandler = ((MainActivity)MainActivity.mContext).getProcessHandler();
-                    SocketReceiveMessage socketReceiveMessage = ((MainActivity)MainActivity.mContext).getSocketReceiveMessage();
-                    ChargingCurrentData chargingCurrentData = ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).getChargingCurrentData();
+                    ProcessHandler processHandler = activity.getProcessHandler();
+                    SocketReceiveMessage socketReceiveMessage = activity.getSocketReceiveMessage();
+                    ChargingCurrentData chargingCurrentData = activity.getClassUiProcess(mChannel).getChargingCurrentData();
                     chargingCurrentData.setChargePointStatus(ChargePointStatus.Finishing);
                     chargingCurrentData.setStopReason(Reason.PowerLoss);
 
-//                    chargingCurrentData.setPowerMeterStop(((MainActivity) MainActivity.mContext).getControlBoard().getRxData(mChannel).getActiveEnergy());
+//                    chargingCurrentData.setPowerMeterStop(activity.getControlBoard().getRxData(mChannel).getActiveEnergy());
                     chargingCurrentData.setPowerMeterStop(chargingCurrentData.getPowerMeterStart());    // TODO: check
 
                     zonedDateTimeConvert = new ZonedDateTimeConvert();
@@ -340,8 +349,8 @@ public class ChargingFragment extends Fragment implements View.OnClickListener, 
                     logger.error(" {}", e.getMessage());
                 }
             }
-            // rebooting
 
+            // rebooting
             PowerManager powerManager =
                     (PowerManager) MainActivity.mContext.getSystemService(Context.POWER_SERVICE);
 

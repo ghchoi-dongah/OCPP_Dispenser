@@ -115,7 +115,7 @@ public class ControlBoard implements Runnable {
             receiveThread.start();
 
         } catch (Exception e) {
-            logger.error("ControlBoard construct error : {}", e.getMessage());
+            logger.error("ControlBoard construct error : {}", e.getMessage(), e);
         }
     }
 
