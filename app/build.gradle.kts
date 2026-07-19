@@ -7,24 +7,24 @@ android {
     compileSdk = 36
 
     // hola
-//    signingConfigs {
-//        getByName("debug") {
-//            keyAlias = "androiddebugkey"
-//            keyPassword = "android"
-//            storeFile = file("D:\\AndroidDongah\\JKS_hola\\platform.jks")
-//            storePassword = "android"
-//        }
-//    }
-
-    // clear
-        signingConfigs {
+    signingConfigs {
         getByName("debug") {
-            keyAlias = "platform"
+            keyAlias = "androiddebugkey"
             keyPassword = "android"
-            storeFile = file("D:\\AndroidDongah\\PlatformKeyClear\\keystore\\platform.jks")
+            storeFile = file("D:\\AndroidDongah\\JKS_hola\\platform.jks")
             storePassword = "android"
         }
     }
+
+    // clear
+//        signingConfigs {
+//        getByName("debug") {
+//            keyAlias = "platform"
+//            keyPassword = "android"
+//            storeFile = file("D:\\AndroidDongah\\PlatformKeyClear\\keystore\\platform.jks")
+//            storePassword = "android"
+//        }
+//    }
 
 
     defaultConfig {

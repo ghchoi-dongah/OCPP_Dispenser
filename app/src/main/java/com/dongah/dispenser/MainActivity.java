@@ -41,6 +41,7 @@ import com.dongah.dispenser.basefunction.UiSeq;
 import com.dongah.dispenser.controlboard.ControlBoard;
 import com.dongah.dispenser.handler.ProcessHandler;
 import com.dongah.dispenser.rfcard.RfCardReaderReceive;
+import com.dongah.dispenser.utils.MonitorHttpServer;
 import com.dongah.dispenser.utils.SftpRxJava;
 import com.dongah.dispenser.utils.ToastPositionMake;
 import com.dongah.dispenser.websocket.ocpp.core.Reason;
@@ -103,6 +104,7 @@ public class MainActivity extends AppCompatActivity {
     List<Connector> connectorList = new ArrayList<>();
 
     ClientSocket clientSocket;
+    MonitorHttpServer monitorHttpServer;
 
 
     public ToastPositionMake getToastPositionMake() {
@@ -228,6 +230,10 @@ public class MainActivity extends AppCompatActivity {
         controlBoard = new ControlBoard(GlobalVariables.maxChannel, chargerConfiguration.getControlCom());
         // 4. rf card reade : MID = terminal ID */
         rfCardReaderReceive = new RfCardReaderReceive(chargerConfiguration.getRfCom());
+
+        // Control Rx/Tx
+        monitorHttpServer = new MonitorHttpServer(8080);
+        monitorHttpServer.start();
 
         // 5. Handler */
         processHandler = new ProcessHandler(chargerConfiguration);
@@ -416,6 +422,9 @@ public class MainActivity extends AppCompatActivity {
             processHandler.onDiagnosticsStop();
         }
         handler.removeCallbacks(runnable); // 메모리 누수 방지
+        if (monitorHttpServer != null) {
+            monitorHttpServer.stopServer();
+        }
     }
 
 

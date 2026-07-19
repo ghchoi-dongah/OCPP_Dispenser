@@ -172,8 +172,7 @@ public class PlugWaitFragment extends Fragment {
                 }
             });
         } catch (Exception e) {
-            Log.e("PlugWaitFragment", "onViewCreated error", e);
-            logger.error("PlugWaitFragment onViewCreated : {}", e.getMessage());
+            logger.error("onViewCreated error : {}", e.getMessage());
         }
     }
 
@@ -199,8 +198,7 @@ public class PlugWaitFragment extends Fragment {
             countRunnable = null;
 
         } catch (Exception e) {
-            Log.e("PlugWaitFragment", "onDestroyView error", e);
-            logger.error("PlugWaitFragment onDestroyView error : {}", e.getMessage());
+            logger.error("onDestroyView error : {}", e.getMessage(), e);
         }
         super.onDestroyView();
     }
@@ -208,14 +206,5 @@ public class PlugWaitFragment extends Fragment {
     @Override
     public void onDetach() {
         super.onDetach();
-        try {
-            if (countHandler != null) {
-                countHandler.removeCallbacksAndMessages(null);
-                countHandler = null;
-            }
-        } catch (Exception e) {
-            Log.e("PlugWaitFragment", "onDetach error", e);
-            logger.error("PlugWaitFragment onDetach error : {}", e.getMessage());
-        }
     }
 }

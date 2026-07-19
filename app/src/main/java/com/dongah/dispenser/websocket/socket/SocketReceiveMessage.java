@@ -1118,29 +1118,33 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                     }
                                 }
                             } else if (Objects.equals("RemoteStopTransaction", actionName)) {
-                                boolean result = false;
-                                int remoteCh = 0;
-                                int transactionId = jsonObject.has("transactionId") ? jsonObject.getInt("transactionId") : 0;
+                                try {
+                                    boolean result = false;
+                                    int remoteCh = 0;
+                                    int transactionId = jsonObject.has("transactionId") ? jsonObject.getInt("transactionId") : 0;
 
-                                for (int i = 0; i < GlobalVariables.maxChannel; i++) {
-                                    chargingCurrentData = ((MainActivity) MainActivity.mContext).getClassUiProcess(i).getChargingCurrentData();
-                                    uiSeq = ((MainActivity) MainActivity.mContext).getClassUiProcess(i).getUiSeq();
-                                    if (chargingCurrentData.getTransactionId() == transactionId && Objects.equals(uiSeq, UiSeq.CHARGING)) {
-                                        result = true;
-                                        remoteCh = i;
-                                        break;
+                                    for (int i = 0; i < GlobalVariables.maxChannel; i++) {
+                                        chargingCurrentData = ((MainActivity) MainActivity.mContext).getClassUiProcess(i).getChargingCurrentData();
+                                        uiSeq = ((MainActivity) MainActivity.mContext).getClassUiProcess(i).getUiSeq();
+                                        if (chargingCurrentData.getTransactionId() == transactionId && Objects.equals(uiSeq, UiSeq.CHARGING)) {
+                                            result = true;
+                                            remoteCh = i;
+                                            break;
+                                        }
                                     }
-                                }
 
-                                RemoteStartStopStatus remoteStartStopStatus = result ? RemoteStartStopStatus.Accepted : RemoteStartStopStatus.Rejected;
-                                RemoteStopTransactionConfirmation remoteStopTransactionConfirmation = new RemoteStopTransactionConfirmation(remoteStartStopStatus);
-                                onResultSend(remoteStopTransactionConfirmation.getActionName(), message.getId(), remoteStopTransactionConfirmation);
+                                    RemoteStartStopStatus remoteStartStopStatus = result ? RemoteStartStopStatus.Accepted : RemoteStartStopStatus.Rejected;
+                                    RemoteStopTransactionConfirmation remoteStopTransactionConfirmation = new RemoteStopTransactionConfirmation(remoteStartStopStatus);
+                                    onResultSend(remoteStopTransactionConfirmation.getActionName(), message.getId(), remoteStopTransactionConfirmation);
 
-                                if (result) {
-                                    ((MainActivity) MainActivity.mContext).getClassUiProcess(remoteCh).onRemoteTransactionStop(remoteCh,Reason.Remote);
-                                    ((MainActivity) MainActivity.mContext).getClassUiProcess(remoteCh).setUiSeq(UiSeq.FINISH_WAIT);
-                                    //hash map delete
-                                    getConnectorIdHashMap.remove(transactionId);
+                                    if (result) {
+                                        ((MainActivity) MainActivity.mContext).getClassUiProcess(remoteCh).onRemoteTransactionStop(remoteCh,Reason.Remote);
+                                        ((MainActivity) MainActivity.mContext).getClassUiProcess(remoteCh).setUiSeq(UiSeq.FINISH_WAIT);
+                                        //hash map delete
+                                        getConnectorIdHashMap.remove(transactionId);
+                                    }
+                                } catch (Exception e) {
+                                    logger.error("RemoteStopTransaction receive error : {}", e.getMessage(), e);
                                 }
                             } else if (Objects.equals("DataTransfer", actionName)) {
                                 //* dataTransfer-(messageId) */

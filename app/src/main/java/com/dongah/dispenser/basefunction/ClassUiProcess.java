@@ -811,7 +811,6 @@ public class ClassUiProcess implements RfCardReaderListener {
             } else {
                 if (rxData.isCsStop() || !rxData.isCsPilot() || chargingCurrentData.isUserStop() ||
                         (rxData.getSoc() >= chargerConfiguration.getTargetSoc() && chargerConfiguration.getTargetSoc() != 0)) {
-//                                    (chargingCurrentData.getHmChargingLimitFee() <= chargingCurrentData.getPowerMeterUsePay())) {
                     controlBoard.getTxData(getCh()).setStop(true);
                     controlBoard.getTxData(getCh()).setStart(false);
                     if (!rxData.isCsPilot()) {
@@ -830,7 +829,6 @@ public class ClassUiProcess implements RfCardReaderListener {
                     setUiSeq(UiSeq.FINISH_WAIT);
                 } else if (chargingCurrentData.isPrePaymentResult() &&
                         (chargingCurrentData.getPrePayment() <= chargingCurrentData.getPowerMeterUsePay())) {
-//                                            || chargingCurrentData.getHmChargingLimitFee() <= chargingCurrentData.getPowerMeterUsePay())) {
                     controlBoard.getTxData(getCh()).setStop(true);
                     controlBoard.getTxData(getCh()).setStart(false);
                     chargingCurrentData.setPowerMeterUsePay(chargingCurrentData.getPrePayment());
@@ -909,11 +907,11 @@ public class ClassUiProcess implements RfCardReaderListener {
                             "Finishing",
                             false));
                 }
-                setUiSeq(UiSeq.FINISH);
-                fragmentChange.onFragmentChange(getCh(), UiSeq.FINISH, "FINISH", null);
             }
+            setUiSeq(UiSeq.FINISH);
+            fragmentChange.onFragmentChange(getCh(), UiSeq.FINISH, "FINISH", null);
         } catch (Exception e) {
-            logger.error("handleFinishWaitFINISH_WAIT error : {} ", e.getMessage());
+            logger.error("handleFinishWait error : {} ", e.getMessage());
         }
     }
 
