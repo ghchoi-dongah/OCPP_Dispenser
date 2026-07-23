@@ -10,16 +10,16 @@ import java.io.File;
 public class GlobalVariables {
 
     //storage/emulated/0/Android/media/files
-    public static String ROOT_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Android" +
-            File.separator + "media" + File.separator + "files";
+//    public static String ROOT_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Android" +
+//            File.separator + "media" + File.separator + "files";
 
-//    public static String ROOT_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
+    public static String ROOT_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
 
     public static final String PACKAGE_NAME=  "com.dongah.autoupdates";
     public static final String PACKAGE_CLASS_NAME = "com.dongah.autoupdates.MainActivity";
 
-    public static String VERSION = "1.0.1";
-    public static String FW_VERSION = "1.0.1";
+    public static String VERSION = "DEVD 1.0.0";
+    public static String FW_VERSION = "1.0.0";
 
     /**
      * Max plug count

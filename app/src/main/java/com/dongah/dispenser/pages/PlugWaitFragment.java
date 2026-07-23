@@ -128,7 +128,8 @@ public class PlugWaitFragment extends Fragment {
                         @Override
                         public void run() {
                             cnt++;
-                            if (Objects.equals(cnt, GlobalVariables.getConnectionTimeOut()) && !rxData.isCsPilot()) {
+                            // && !rxData.isCsPilot()
+                            if (Objects.equals(cnt, GlobalVariables.getConnectionTimeOut())) {
                                 ((MainActivity) getActivity()).getControlBoard().getTxData(mChannel).setStart(false);
                                 ((MainActivity) getActivity()).getControlBoard().getTxData(mChannel).setStop(false);
                                 //선 결제에 의한 무카드 취소 (4:무카드 취소)(5:부분 취소)

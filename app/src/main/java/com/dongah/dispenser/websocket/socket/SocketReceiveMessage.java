@@ -882,7 +882,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                             onSend(100, securityEventNotificationRequest.getActionName(), securityEventNotificationRequest);
                                         }
                                     } catch (Exception e) {
-                                        logger.error(e.getMessage());
+                                        logger.error("SignedFirmwareStatusNotification error : {}", e.getMessage(), e);
                                     }
                                 } else if (Objects.equals(chargerConfiguration.getSignedFirmwareStatus(), SignedFirmwareStatus.SignatureVerified)) {
                                     // installing reboot
@@ -1017,7 +1017,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                                 try {
                                     chargingProfile = jsonObject.has("chargingProfile") ? jsonObject.getJSONObject("chargingProfile") : null;
                                 } catch (Exception e) {
-                                    logger.error(e.getMessage());
+                                    logger.error("RemoteStartTransaction error : {}", e.getMessage(), e);
                                     processHandler.sendMessage(onMakeHandlerMessage(
                                             GlobalVariables.MESSAGE_HANDLER_REMOTE_START_TRANSACTION,
                                             realConnectorId,
@@ -2197,7 +2197,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
     public void onChargerOperateSave() {
         try {
             boolean chk;
-            String rootPath = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
+            String rootPath = GlobalVariables.getRootPath();
             String fileName = "ChargerOperate";
             File file = new File(rootPath + File.separator + fileName);
             if (file.exists()) chk = file.delete();
@@ -2206,7 +2206,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                 fileManagement.stringToFileSave(rootPath, fileName, statusContent, true);
             }
         } catch (Exception e) {
-            logger.error(e.getMessage());
+            logger.error("onChargerOperateSave error : {}", e.getMessage(), e);
         }
     }
 
@@ -2888,7 +2888,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
             }
             return jArray;
         } catch (Exception e) {
-            logger.error(e.getMessage());
+            logger.error("onChargingSchedulePeriodCurrentData error : {}", e.getMessage(), e);
         }
         return null;
     }
@@ -3127,13 +3127,13 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                 }
             }
         } catch (Exception e) {
-            logger.error(e.getMessage());
+            logger.error("onSupportedFeatureProfiles error : {}", e.getMessage(), e);
         }
         return result;
     }
 
-
     private JSONArray getCertification(CertificateUse certificateUse) {
+
         try {
             String filename = certificateUse == CertificateUse.CentralSystemRootCertificate ? "cert.pem" :
                     certificateUse == CertificateUse.ManufacturerRootCertificate ? "dongahtest.p-e.kr.crt" : null;
@@ -3271,7 +3271,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
             sig.update(firmwareData); // Use original data, not its hash
             result = sig.verify(signature);
         } catch (Exception e) {
-            logger.error(e.getMessage());
+            logger.error("verifySignature error : {}", e.getMessage(), e);
         }
         return result;
     }

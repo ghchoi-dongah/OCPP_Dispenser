@@ -172,11 +172,11 @@ public class InitFragment extends Fragment implements View.OnClickListener {
             double testPrice = Double.parseDouble(chargerConfiguration.getTestPrice());
             switch (chargerConfiguration.getAuthMode()) {
                 case "0":
-                    if (socketReceiveMessage.getSocket().getState() != SocketState.OPEN) {
-                        Toast.makeText(this.getActivity(), "서버 연결 DISCONNECT.\n충전을 할 수 없습니다.",
-                                Toast.LENGTH_SHORT).show();
-                        return;
-                    }
+//                    if (socketReceiveMessage.getSocket().getState() != SocketState.OPEN) {
+//                        Toast.makeText(this.getActivity(), "서버 연결 DISCONNECT.\n충전을 할 수 없습니다.",
+//                                Toast.LENGTH_SHORT).show();
+//                        return;
+//                    }
                     // server mode
                     if (Objects.equals(chargerConfiguration.getSelectPayment(), "0")) {
                         // credit + member

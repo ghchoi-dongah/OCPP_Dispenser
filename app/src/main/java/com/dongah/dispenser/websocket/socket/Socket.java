@@ -464,7 +464,7 @@ public class Socket extends WebSocketListener {
             closeClient();
             connect(url);
         } catch (Exception e) {
-            logger.error(e.getMessage());
+            logger.error("socket connect error : {}", e.getMessage(), e);
         }
     }
 

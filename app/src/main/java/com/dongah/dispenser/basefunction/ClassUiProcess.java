@@ -690,6 +690,7 @@ public class ClassUiProcess implements RfCardReaderListener {
         } else if (Objects.equals(chargerConfiguration.getAuthMode(), "2") &&
                 !chargingCurrentData.isReBoot() &&
                 rxData.getCpVoltage() < 110 && !prevCsPilot) {
+            // test mode
             chargingCurrentData.onCurrentDataClear();
             chargingCurrentData.setConnectorId(ch + 1);
             chargingCurrentData.setIdTag("");

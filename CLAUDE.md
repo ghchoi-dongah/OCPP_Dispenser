@@ -96,6 +96,83 @@ User Action
 ```
 
 OCPP 메시지 포맷:
+
+### 시작 시 StatusNotification 전송 흐름
+
+앱 시작 후 BootNotification.conf(Accepted) 수신 시점에 모든 커넥터의 StatusNotification을 전송한다.
+
+```
+앱 시작
+  → BootNotificationThread → BootNotification 전송
+    → BootNotification.conf (Accepted) 수신
+        ← SocketReceiveMessage.java:444 — isTriggerBootNotification() == false 조건 확인
+          → MESSAGE_HANDLER_STATUS_NOTIFICATION_BOOT 발행 (:447)
+            → ProcessHandler.java:231 — delay ms 후 메인 스레드에서 실행
+              → connectorId 0~N 순서대로 StatusNotification 전송 (:283)
+```
+
+**커넥터별 상태 결정 로직** (`ProcessHandler.java:240~283`):
+
+| connectorId | 판단 기준 |
+|---|---|
+| 0 (전체 충전기) | `isCsFault()` → Faulted / `ChargerOperation[0]==false` → Unavailable / 그 외 → Available |
+| 1, 2 (각 채널) | `HardResetFinishing_N` 파일 존재 시 cpVoltage < 110 → Preparing, 아닌 경우 → Finishing / fault → Faulted / `ChargerOperation[i]==false` → Unavailable / `UiSeq==CHARGING` → Charging / cpVoltage < 110 → Preparing / 그 외 → Available |
+
+`TriggerBootNotification` 플래그가 true인 경우(TriggerMessage 요청으로 발생한 BootNotification)에는 StatusNotification을 재전송하지 않는다.
+
+### GetDiagnostics / DiagnosticsStatusNotification 처리 흐름
+
+CSMS → `[2, "uuid", "GetDiagnostics", {"location": "ftp://...", "startTime": ..., "stopTime": ...}]` 수신 시 처리 순서:
+
+```
+CSMS → GetDiagnostics 수신
+  → SocketReceiveMessage.java:1553 — location/retries/startTime/stopTime 파싱
+    → GetDiagnostics.conf(fileName="diagnostics") 즉시 응답 (:1560~1561)
+    → DiagnosticsStatusNotification(Uploading) 전송 (:1565~1567)
+    → onDiagnosticsFileMake(startTime, stopTime, location) 호출 (:1570)
+        → diagnostics.dongah 파일에서 startTime~stopTime 범위 필터링
+        → "diagnostics" 파일 생성 (GlobalVariables.getRootPath())
+        → FtpRxJava(DIAGNOSTICS, location).downloadTask() 실행
+            → doInBackground(): IO 스레드에서 FTP 업로드
+                → ftpHelper.uploadFile("diagnostics" → FTP 서버)
+            → 결과 콜백 (RxJava observeOn mainThread):
+                ├─ 성공: DiagnosticsStatusNotification(Uploaded) 전송  (FtpRxJava.java:109~113)
+                ├─ 실패: DiagnosticsStatusNotification(UploadFailed) 전송 (:150~154)
+                └─ 예외: DiagnosticsStatusNotification(UploadFailed) 전송 (:195~200)
+```
+
+**전송되는 DiagnosticsStatusNotification 종류**:
+
+| 시점 | Status | 위치 |
+|---|---|---|
+| GetDiagnostics 수신 직후 | `Uploading` | `SocketReceiveMessage.java:1567` |
+| FTP 업로드 성공 | `Uploaded` | `FtpRxJava.java:113` |
+| FTP 업로드 실패·예외 | `UploadFailed` | `FtpRxJava.java:154` / `:200` |
+
+**주의**: `onDiagnosticsFileMake()`는 파일을 `GlobalVariables.getRootPath()`에 저장하지만, `FtpRxJava.LOCAL_PATH`는 `Environment.getExternalStorageDirectory() + "/Download"`로 하드코딩되어 있어 경로 불일치 시 업로드 파일을 찾지 못할 수 있다 (`FtpRxJava.java:46`).
+
+### ChangeAvailability 처리 흐름
+
+CSMS → `[2, "uuid", "ChangeAvailability", {"connectorId": N, "type": "Operative"|"Inoperative"}]` 수신 시 처리 순서:
+
+```
+CSMS → ChangeAvailability 수신
+  → SocketReceiveMessage.java:1279 — connectorId/type 파싱
+    → ChargerOperation[] 갱신 + onChargerOperateSave() (파일 저장)
+      → (200ms 후) MESSAGE_CHANGE_AVAILABILITY(122) 발행
+          → ProcessHandler.java:623 — ChangeAvailability.conf 응답 전송
+      → (200ms 후) MESSAGE_HANDLER_CHANGE_AVAILABILITY(125) 발행
+          → ProcessHandler.java:634 — StatusNotification(Available/Unavailable) 전송
+```
+
+**connectorId별 분기** (`SocketReceiveMessage.java:1301~1336`):
+
+| connectorId | 처리 |
+|---|---|
+| 0 (전체) | 모든 채널 `ChargerOperation[i]` 일괄 변경 후 connectorId 0~N 순서대로 StatusNotification 전송 |
+| 1, 2 (개별) | 해당 채널만 변경 후 해당 connectorId StatusNotification 1건 전송 |
+
+**Confirmation 응답** (`ProcessHandler.java:623`): 번들의 `result` 값이 `true` → `Accepted`, `false` → `Rejected`.
 - Call: `[2, "uniqueId", "Action", {payload}]`
 - CallResult: `[3, "uniqueId", {payload}]`
 - CallError: `[4, "uniqueId", "errorCode", "description", {}]`
@@ -129,7 +206,7 @@ CRC16으로 무결성 검증. `RxData`는 46워드(전압·전류·릴레이 상
 
 ### 설정 관리
 
-설정은 `/storage/emulated/0/Download/` 경로의 파일에서 로드된다. `ChargerConfiguration.onLoadConfiguration()`이 초기 로드, `ConfigurationKeyRead`가 서버에서 받은 OCPP `ChangeConfiguration` 키를 반영하여 런타임에 오버라이드한다.
+설정은 `/storage/emulated/0/Android/media/files/` 경로의 파일에서 로드된다(`GlobalVariables.ROOT_PATH`, `GlobalVariables.java:13`). `ChargerConfiguration.onLoadConfiguration()`이 초기 로드, `ConfigurationKeyRead`가 서버에서 받은 OCPP `ChangeConfiguration` 키를 반영하여 런타임에 오버라이드한다. `/storage/emulated/0/Download`는 구 경로로 주석 처리되어 있다(`GlobalVariables.java:16`).
 
 ## 주요 의존성
 

@@ -125,7 +125,6 @@ public class BootNotificationThread extends Thread {
                                 chargerConfiguration.setSignedFirmwareStatus(signedFirmwareStatus);
                             } else if (Objects.equals(resultStatus[0], "Firmware")) {
                                 FirmwareStatus firmwareStatus = FirmwareStatus.valueOf(resultStatus[1]);
-                                ;
                                 FirmwareStatusNotificationRequest firmwareStatusNotificationRequest = new FirmwareStatusNotificationRequest(firmwareStatus);
                                 firmwareStatusNotificationRequest.setStatus(firmwareStatus);
                                 socketReceiveMessage.onSend(100, firmwareStatusNotificationRequest.getActionName(), firmwareStatusNotificationRequest);

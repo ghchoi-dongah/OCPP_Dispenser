@@ -212,7 +212,7 @@ public class MainActivity extends AppCompatActivity {
         // 1. charger configuration (config 파일 우선 로드 → SecurityProfile 기본값 설정)
         chargerConfiguration = new ChargerConfiguration();
         chargerConfiguration.onLoadConfiguration();
-        textViewVersionValue.setText("VER-DEVD " + GlobalVariables.getVERSION() + " | ");
+        textViewVersionValue.setText("VER-DEVD" + GlobalVariables.getFwVersion() + " | ");
 
         // ConfigurationKey read (OCPP로 변경된 값이 있으면 GlobalVariables 덮어씀)
         configurationKeyRead = new ConfigurationKeyRead();
