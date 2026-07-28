@@ -860,7 +860,9 @@ public class ClassUiProcess implements RfCardReaderListener {
                         chargingCurrentData.getStopReason() != Reason.SoftReset &&
                         chargingCurrentData.getStopReason() != Reason.PowerLoss) {
                     chargingCurrentData.setStopReason(Reason.EVDisconnected);
-                } else if (chargingCurrentData.isUserStop() && chargingCurrentData.getStopReason() != Reason.EVDisconnected) {
+                } else if (!rxData.isCsPilot()) {
+                    chargingCurrentData.setStopReason(Reason.EVDisconnected);
+                } else if (chargingCurrentData.isUserStop()) {
                     chargingCurrentData.setStopReason(Reason.Local);
                 }
                 chargingCurrentData.setPowerMeterStop(rxData.getPowerMeter()*10);

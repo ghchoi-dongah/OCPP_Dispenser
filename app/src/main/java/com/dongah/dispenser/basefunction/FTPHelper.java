@@ -19,7 +19,7 @@ public class FTPHelper {
     FTPClient ftpClient;
 
 
-    public void ftpConnect(String server, String userName, String pass) {
+    public boolean ftpConnect(String server, String userName, String pass) {
         try {
             ftpClient = new FTPClient();
             ftpClient.setConnectTimeout(15000);
@@ -29,10 +29,13 @@ public class FTPHelper {
             logger.info("FTP connect reply={} server={}", replyCode, server);
             boolean loginOk = ftpClient.login(userName, pass);
             logger.info("FTP login user={} ok={} reply={}", userName, loginOk, ftpClient.getReplyString().trim());
+            if (!loginOk) return false;
             ftpClient.enterLocalPassiveMode();
             ftpClient.setFileType(FTP.BINARY_FILE_TYPE);
+            return true;
         } catch (Exception e) {
             logger.error("ftpConnect error server={} user={} : {}", server, userName, e.getMessage());
+            return false;
         }
     }
 

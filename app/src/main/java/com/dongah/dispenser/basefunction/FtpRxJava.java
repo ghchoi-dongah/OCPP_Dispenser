@@ -38,12 +38,12 @@ public class FtpRxJava {
     //    private static String HOST = "211.44.234.112";
     private static String HOST = "192.168.30.120";
     private static String USER_NAME = "ftpuser";
-    private static final String PASSWORD = "dev!1q2w3e";
+    private static String PASSWORD = "dev!1q2w3e";
 //    private static String REMOTE_PATH = "/app/upload/dongah/apk";
     private static String REMOTE_PATH = "/upload";
 
-//    private static final String LOCAL_PATH = GlobalVariables.getRootPath();
-    private static final String LOCAL_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
+    private static final String LOCAL_PATH = GlobalVariables.getRootPath();
+//    private static final String LOCAL_PATH = Environment.getExternalStorageDirectory().toString() + File.separator + "Download";
 
     private final CompositeDisposable disposables = new CompositeDisposable();
     FileTransType fileTransType = FileTransType.NONE;
@@ -66,9 +66,17 @@ public class FtpRxJava {
         VERSION_FILE_NAME = ((MainActivity) MainActivity.mContext).getChargerConfiguration().getChargerPointModel() + "_version";
         this.fileTransType = fileTransType;
 
-        // location = "ftp://ftpuser@host/dir/filename.apk"
-        USER_NAME = location.split("@")[0].split("//")[1];
-        String afterAt = location.split("@")[1]; // "host/dir/filename.apk"
+        // location = "ftp://ftpuser:password@host/dir/filename.apk"
+        //        or "ftp://ftpuser@host/dir/filename.apk"
+        String withoutScheme = location.split("//")[1]; // "ftpuser:password@host/dir/filename.apk"
+        String credentials = withoutScheme.split("@")[0]; // "ftpuser:password" or "ftpuser"
+        if (credentials.contains(":")) {
+            USER_NAME = credentials.split(":")[0];
+            PASSWORD = credentials.split(":")[1];
+        } else {
+            USER_NAME = credentials;
+        }
+        String afterAt = withoutScheme.split("@")[1]; // "host/dir/filename.apk"
         int firstSlash = afterAt.indexOf('/');
         HOST = afterAt.substring(0, firstSlash);  // "host"
         String fullPath = afterAt.substring(firstSlash); // "/dir/filename.apk"
@@ -241,7 +249,11 @@ public class FtpRxJava {
             public ObservableSource<? extends String> get() throws Throwable {
                 boolean result = false;
                 ftpHelper = new FTPHelper();
-                ftpHelper.ftpConnect(HOST, USER_NAME, PASSWORD);
+                boolean isFtpConnect = ftpHelper.ftpConnect(HOST, USER_NAME, PASSWORD);
+                if (!isFtpConnect) {
+                    logger.error("FTP connect/login failed host={} user={}", HOST, USER_NAME);
+//                    return Observable.just("Fail");
+                }
                 try {
                     if (Objects.equals(FileTransType.FIRMWARE, fileTransType) || Objects.equals(FileTransType.SIGNED_FIRMWARE, fileTransType)) {
                         result = ftpHelper.downloadFile(REMOTE_PATH + File.separator + UI_FILE_NAME, LOCAL_PATH + File.separator + UI_FILE_NAME);
