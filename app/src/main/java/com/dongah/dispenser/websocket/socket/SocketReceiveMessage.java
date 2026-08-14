@@ -322,21 +322,19 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
 
         // 미전송 데이터 확인: main Looper에서 실행하여 offline 기간에 쌓인
         // processHandler 메시지가 모두 처리(dump 저장)된 후 dump 파일을 읽도록 보장
-        new Handler(Looper.getMainLooper()).post(() -> {
-            try {
-                DumpDataSend dumpDataSend = new DumpDataSend();
-                dumpDataSend.onDumpSend();
-            } catch (Exception e) {
-                logger.error(" bootNotification Dump error : {}", e.getMessage());
-            }
-            // dump 처리 완료 후 BootNotification/Heartbeat 시작
-            // dumpPendingStop/dumpPendingFinishing=true이면 conf 수신 후 시작 (메시지 순서 보장)
-            if (!GlobalVariables.dumpPendingStop && !GlobalVariables.dumpPendingFinishing) {
-                onStartBootOrHeartbeat();
-            } else {
-                GlobalVariables.pendingBootAfterDump = true;
-            }
-        });
+        try {
+            DumpDataSend dumpDataSend = new DumpDataSend();
+            dumpDataSend.onDumpSend();
+        } catch (Exception e) {
+            logger.error(" bootNotification Dump error : {}", e.getMessage());
+        }
+        // dump 처리 완료 후 BootNotification/Heartbeat 시작
+        // dumpPendingStop/dumpPendingFinishing=true이면 conf 수신 후 시작 (메시지 순서 보장)
+        if (!GlobalVariables.dumpPendingStop && !GlobalVariables.dumpPendingFinishing) {
+            onStartBootOrHeartbeat();
+        } else {
+            GlobalVariables.pendingBootAfterDump = true;
+        }
 
         // 재접속 후 CHARGING 상태인데 transactionId가 없으면 StartTransaction 재전송 (race condition 방어)
         processHandler.postDelayed(() -> {

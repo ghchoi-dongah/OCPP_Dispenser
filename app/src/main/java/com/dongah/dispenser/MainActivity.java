@@ -268,6 +268,7 @@ public class MainActivity extends AppCompatActivity {
             classUiProcess[i] = new ClassUiProcess(i);
             chargingCurrentData[i] = new ChargingCurrentData(i);
             chargingCurrentData[i].onCurrentDataClear();
+            chargingCurrentData[i].setConnectorId(i+1);
         }
 
 

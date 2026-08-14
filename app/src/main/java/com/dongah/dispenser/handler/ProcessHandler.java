@@ -273,6 +273,11 @@ public class ProcessHandler extends Handler {
                                                 uiSeq == UiSeq.CHARGING ? ChargePointStatus.Charging :
                                                 rxData.getCpVoltage() < 110 ? ChargePointStatus.Preparing :
                                                 ChargePointStatus.Available;
+
+//                                        bootStatus = !GlobalVariables.ChargerOperation[i] ? ChargePointStatus.Unavailable :
+//                                                uiSeq == UiSeq.CHARGING ? ChargePointStatus.Charging :
+//                                                        rxData.isCsPilot() ? ChargePointStatus.Preparing :
+//                                                                ChargePointStatus.Available;
                                     }
                                     chargingCurrentData.setChargePointErrorCode(bootErrorCode);
                                     chargingCurrentData.setChargePointStatus(bootStatus);

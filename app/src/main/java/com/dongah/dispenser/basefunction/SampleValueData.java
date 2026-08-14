@@ -46,7 +46,7 @@ public class SampleValueData {
         sampledValues[3].setContext("Sample.Periodic");
         sampledValues[3].setFormat(ValueFormat.Raw);
         sampledValues[3].setMeasurand("Frequency");
-        sampledValues[3].setUnit("var");
+//        sampledValues[3].setUnit("var");
         sampledValues[3].setValue("0");
         //5.SoC
         sampledValues[4] = new SampledValue();
