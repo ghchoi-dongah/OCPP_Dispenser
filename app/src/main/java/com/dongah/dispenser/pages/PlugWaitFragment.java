@@ -160,6 +160,7 @@ public class PlugWaitFragment extends Fragment {
                                                     false));
                                 }
                                 activity.getClassUiProcess(mChannel).onHome();
+                                return;
                             } else {
                                 countHandler.postDelayed(countRunnable, 1000);
                             }
