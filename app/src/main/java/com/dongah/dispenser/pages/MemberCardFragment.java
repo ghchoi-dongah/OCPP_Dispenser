@@ -130,8 +130,8 @@ public class MemberCardFragment extends Fragment {
                         public void run() {
                             cnt++;
                             if (cnt >= MAX_TIME) {
-                                ((MainActivity) getActivity()).getClassUiProcess(mChannel).onHome();
                                 countHandler.removeCallbacks(countRunnable);
+                                ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).onHome();
                             } else {
                                 textViewTagTimer.setText((MAX_TIME - cnt) + "초");
                                 countHandler.postDelayed(countRunnable, 1000);

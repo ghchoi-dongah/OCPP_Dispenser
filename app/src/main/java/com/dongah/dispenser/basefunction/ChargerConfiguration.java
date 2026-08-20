@@ -111,7 +111,7 @@ public class ChargerConfiguration {
 
     public int statusNotificationDelay = 300;
 
-    public int targetSoc = 0;
+    public int targetSoc = 100;
     public int targetChargingTime = 0;
 
     public boolean StopConfirm;

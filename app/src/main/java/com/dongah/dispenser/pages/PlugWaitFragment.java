@@ -22,6 +22,7 @@ import com.dongah.dispenser.basefunction.ChargerConfiguration;
 import com.dongah.dispenser.basefunction.ChargingCurrentData;
 import com.dongah.dispenser.basefunction.GlobalVariables;
 import com.dongah.dispenser.controlboard.RxData;
+import com.dongah.dispenser.controlboard.TxData;
 import com.dongah.dispenser.websocket.ocpp.core.ChargePointErrorCode;
 import com.dongah.dispenser.websocket.ocpp.core.ChargePointStatus;
 
@@ -55,11 +56,13 @@ public class PlugWaitFragment extends Fragment {
     ImageView imageViewLoading;
     AnimationDrawable animationDrawable;
 
-    RxData rxData;
     Handler countHandler;
     Runnable countRunnable;
+    MainActivity activity;
     ChargerConfiguration chargerConfiguration;
     ChargingCurrentData chargingCurrentData;
+    RxData rxData;
+    TxData txData;
 
     public PlugWaitFragment() {
         // Required empty public constructor
@@ -97,12 +100,16 @@ public class PlugWaitFragment extends Fragment {
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
                              Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_plug_wait, container, false);
+        activity = (MainActivity) MainActivity.mContext;
+        chargerConfiguration = activity.getChargerConfiguration();
+        chargingCurrentData = activity.getChargingCurrentData(mChannel);
+        rxData = activity.getControlBoard().getRxData(mChannel);
+        txData = activity.getControlBoard().getTxData(mChannel);
+
         txtMessage = view.findViewById(R.id.txtMessage);
         imageViewLoading = view.findViewById(R.id.imageViewLoading);
         imageViewLoading.setBackgroundResource(R.drawable.ani_loading);
         animationDrawable = (AnimationDrawable) imageViewLoading.getBackground();
-        chargerConfiguration = ((MainActivity) MainActivity.mContext).getChargerConfiguration();
-        chargingCurrentData = ((MainActivity) MainActivity.mContext).getChargingCurrentData(mChannel);
         return view;
     }
 
@@ -113,7 +120,6 @@ public class PlugWaitFragment extends Fragment {
         try {
             animationDrawable.start();
             cnt = 0;
-            rxData = ((MainActivity) getActivity()).getControlBoard().getRxData(mChannel);
 
             MediaPlayer mediaPlayer = MediaPlayer.create(MainActivity.mContext, R.raw.plugwait);
             mediaPlayer.setOnCompletionListener(MediaPlayer::release);
@@ -128,10 +134,10 @@ public class PlugWaitFragment extends Fragment {
                         @Override
                         public void run() {
                             cnt++;
-                            // && !rxData.isCsPilot()
-                            if (Objects.equals(cnt, GlobalVariables.getConnectionTimeOut())) {
-                                ((MainActivity) getActivity()).getControlBoard().getTxData(mChannel).setStart(false);
-                                ((MainActivity) getActivity()).getControlBoard().getTxData(mChannel).setStop(false);
+                            if (cnt >= GlobalVariables.getConnectionTimeOut()) {
+                                countHandler.removeCallbacks(countRunnable);
+                                txData.setStart(false);
+                                txData.setStop(false);
                                 //선 결제에 의한 무카드 취소 (4:무카드 취소)(5:부분 취소)
                                 if (chargingCurrentData.isPrePaymentResult()) {
                                     chargingCurrentData.setPartialCancelPayment(chargingCurrentData.getPrePayment());
@@ -140,11 +146,10 @@ public class PlugWaitFragment extends Fragment {
 
                                 //preparing
                                 if (Objects.equals(chargingCurrentData.getChargePointStatus(), ChargePointStatus.Preparing) &&
-                                        Objects.equals(chargerConfiguration.getAuthMode(), "0") &&
-                                        !((MainActivity) getActivity()).getControlBoard().getRxData(mChannel).isCsPilot()) {
+                                        Objects.equals(chargerConfiguration.getAuthMode(), "0") && !rxData.isCsPilot()) {
                                     chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
                                     chargingCurrentData.setChargePointErrorCode(ChargePointErrorCode.NoError);
-                                    ((MainActivity) MainActivity.mContext).getProcessHandler().sendMessage(((MainActivity) MainActivity.mContext).getSocketReceiveMessage()
+                                    activity.getProcessHandler().sendMessage(activity.getSocketReceiveMessage()
                                             .onMakeHandlerMessage(
                                                     GlobalVariables.MESSAGE_HANDLER_STATUS_NOTIFICATION,
                                                     chargingCurrentData.getConnectorId(),
@@ -154,14 +159,14 @@ public class PlugWaitFragment extends Fragment {
                                                     null,
                                                     false));
                                 }
-                                ((MainActivity) getActivity()).getClassUiProcess(mChannel).onHome();
+                                activity.getClassUiProcess(mChannel).onHome();
                             } else {
                                 countHandler.postDelayed(countRunnable, 1000);
                             }
 
                             //connecting wait
                             if (rxData.isCsPilot()) {
-                                Log.d("PlugWaitFragment", "ClassUiSeq: " + ((MainActivity) MainActivity.mContext).getClassUiProcess(mChannel).getUiSeq());
+                                Log.d("PlugWaitFragment", "ClassUiSeq: " + activity.getClassUiProcess(mChannel).getUiSeq());
                                 if (txtMessage.getTag() == null || !(boolean) txtMessage.getTag()) {
                                     txtMessage.setText(R.string.EVCheckMessage);
                                     txtMessage.setTag(true);
