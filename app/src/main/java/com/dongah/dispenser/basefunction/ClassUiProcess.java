@@ -463,6 +463,7 @@ public class ClassUiProcess implements RfCardReaderListener {
                     chargingCurrentData.setResExpiryDate("");
                     chargingCurrentData.setResReservationId("");
                     chargingCurrentData.setResParentIdTag("");
+                    chargingCurrentData.setRemoteStart(false);
                     chargingCurrentData.setReservedStatus(ChargePointStatus.Available);
 
                     socketReceiveMessage = ((MainActivity) MainActivity.mContext).getSocketReceiveMessage();
@@ -647,6 +648,7 @@ public class ClassUiProcess implements RfCardReaderListener {
                 chargingCurrentData.setResExpiryDate("");
                 chargingCurrentData.setResReservationId("");
                 chargingCurrentData.setResParentIdTag("");
+                chargingCurrentData.setRemoteStart(false);
                 chargingCurrentData.setReservedStatus(ChargePointStatus.Available);
             }
         }
@@ -932,6 +934,7 @@ public class ClassUiProcess implements RfCardReaderListener {
                 chargingCurrentData.setResExpiryDate("");
                 chargingCurrentData.setResReservationId("");
                 chargingCurrentData.setResParentIdTag("");
+                chargingCurrentData.setRemoteStart(false);
                 chargingCurrentData.setReservedStatus(ChargePointStatus.Available);
             }
             if (!rxData.isCsPilot() && Objects.equals(ChargePointStatus.Finishing, chargingCurrentData.getChargePointStatus())) {

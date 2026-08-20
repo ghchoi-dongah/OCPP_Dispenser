@@ -20,6 +20,7 @@ import com.dongah.dispenser.R;
 import com.dongah.dispenser.basefunction.ChargerConfiguration;
 import com.dongah.dispenser.basefunction.ChargingCurrentData;
 import com.dongah.dispenser.basefunction.ClassUiProcess;
+import com.dongah.dispenser.basefunction.PaymentType;
 import com.dongah.dispenser.handler.ProcessHandler;
 import com.dongah.dispenser.websocket.ocpp.core.ChargePointStatus;
 import com.dongah.dispenser.websocket.socket.SocketReceiveMessage;
@@ -122,11 +123,8 @@ public class ChargingFinishFragment extends Fragment implements View.OnClickList
         super.onViewCreated(view, savedInstanceState);
             //charging finish info
         try {
-//            if (Objects.equals(chargingCurrentData.getPaymentType(), PaymentType.CREDIT)) {
-//                cardViewPayment.setVisibility(View.VISIBLE);
-//            } else {
-//                cardViewPayment.setVisibility(View.INVISIBLE);
-//            }
+            cardViewPayment.setVisibility(Objects.equals(chargingCurrentData.getPaymentType(), PaymentType.CREDIT) ?
+                    View.VISIBLE : View.INVISIBLE);
             progressCircular.isIndeterminate();
             MediaPlayer mediaPlayer = MediaPlayer.create(MainActivity.mContext, R.raw.chargingfinsih);
             mediaPlayer.setOnCompletionListener(MediaPlayer::release);
@@ -194,6 +192,7 @@ public class ChargingFinishFragment extends Fragment implements View.OnClickList
                             chargingCurrentData.setResExpiryDate("");
                             chargingCurrentData.setResReservationId("");
                             chargingCurrentData.setResParentIdTag("");
+                            chargingCurrentData.setRemoteStart(false);
                         }
                     } catch (Exception e) {
                         logger.error(" result price send fail : {}", e.getMessage());

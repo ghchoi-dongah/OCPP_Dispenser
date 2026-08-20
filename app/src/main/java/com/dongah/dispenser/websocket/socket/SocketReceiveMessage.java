@@ -2346,6 +2346,7 @@ public class SocketReceiveMessage extends JSONCommunicator implements SocketInte
                         chargingCurrentData.setResIdTag("");
                         chargingCurrentData.setResParentIdTag("");
                         chargingCurrentData.setResReservationId("");
+                        chargingCurrentData.setRemoteStart(false);
                         chargingCurrentData.setChargePointStatus(ChargePointStatus.Available);
                     }
                     break;
